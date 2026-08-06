@@ -22,20 +22,20 @@ $tier = ''
 $currentTeam = $null
 $heroes = @()
 $teams = @()
-$tacticSet = @{}   # 所有 T0+/T0- 队伍用到的战法
-$equipSet = @{}    # 所有 T0+/T0- 队伍用到的宝物
+$tacticSet = @{}   # 所有 T0+/T0/T0- 队伍用到的战法
+$equipSet = @{}    # 所有 T0+/T0/T0- 队伍用到的宝物
 $t1list = @(); $t2list = @(); $eql = @()
 
 # 速览是权威名单: 详细章节里已移档/过时的旧队伍一律跳过
 $summary = @{}
 foreach ($sl in Get-Content -LiteralPath $RankFile -Encoding UTF8) {
-    if ($sl -match '^\|\s*(T0\+|T0-|T1|T2-)\s*\|\s*(.+?)\s*\|\s*$') {
+    if ($sl -match '^\|\s*(T0\+|T0-|T0|T1|T2-)\s*\|\s*(.+?)\s*\|\s*$') {
         $summary[$Matches[1]] = @($Matches[2] -split '、' | ForEach-Object { $_.Trim() })
     }
 }
 
 foreach ($line in Get-Content -LiteralPath $RankFile -Encoding UTF8) {
-    if ($line -match '^##\s+(T0\+|T0-|T1|T2-)\s*$') {
+    if ($line -match '^##\s+(T0\+|T0-|T0|T1|T2-)\s*$') {
         $tier = $Matches[1]
         continue
     }
@@ -47,8 +47,10 @@ foreach ($line in Get-Content -LiteralPath $RankFile -Encoding UTF8) {
         $pendingTier = $tier
         if ($raw -match '已降级\s*(T2-)') { $pendingTier = 'T2-' }
         $raw = ($raw -split '：')[-1].Trim()
+        $raw = ($raw -replace '^\d+[.、]\s*', '').Trim()   # 去标题序号 "1. "
         $raw = ($raw -replace '（.+?）', '').Trim()
-        if ($raw -and $summary.ContainsKey($pendingTier) -and ($summary[$pendingTier] -contains $raw)) {
+        # 速览缺该档(如T0-)时以正文为准
+        if ($raw -and (( -not $summary.ContainsKey($pendingTier)) -or ($summary[$pendingTier] -contains $raw))) {
             $currentTeam = $raw
             $heroes = @()
         }
@@ -62,8 +64,8 @@ foreach ($line in Get-Content -LiteralPath $RankFile -Encoding UTF8) {
         $heroes += $h
         if ($heroes.Count -eq 3) {
             $teams += [pscustomobject]@{ Tier = $pendingTier; Team = $currentTeam; Heroes = @($heroes); T1 = ($t1list -join '/'); T2 = ($t2list -join '/'); Equip = ($eql -join '/') }
-            # 收集战法/宝物(仅 T0+/T0-)
-            if ($pendingTier -in @('T0+', 'T0-')) {
+            # 收集战法/宝物(仅 T0+/T0/T0-)
+            if ($pendingTier -in @('T0+', 'T0', 'T0-')) {
                 foreach ($tc in @($t1list, $t2list)) {
                     foreach ($t in $tc) { $t = $t.Trim(); if ($t) { $tacticSet[$t] = $true } }
                 }
@@ -169,13 +171,13 @@ foreach ($acc in $accounts) {
 
     $score = 0
     foreach ($m in $matched) {
-        $w = switch ($m.Tier) { 'T0+' { 10 } 'T0-' { 6 } 'T1' { 3 } 'T2-' { 1 } default { 0 } }
+        $w = switch ($m.Tier) { 'T0+' { 10 } 'T0' { 8 } 'T0-' { 6 } 'T1' { 3 } 'T2-' { 1 } default { 0 } }
         if ($m.Team -in $redSensitive) { $w = [math]::Ceiling($w / 2) }  # 吃红度降权
         $score += $w
     }
     $t0p = @($matched | Where-Object Tier -eq 'T0+').Count
     $t0m = @($matched | Where-Object Tier -eq 'T0-').Count
-    $topTeams = (($matched | Sort-Object @{ Expression = { switch ($_.Tier) { 'T0+' { 0 } 'T0-' { 1 } 'T1' { 2 } 'T2-' { 3 } } } } | Select-Object -First 6 | ForEach-Object { "$($_.Team)($($_.Tier))" }) -join '、')
+    $topTeams = (($matched | Sort-Object @{ Expression = { switch ($_.Tier) { 'T0+' { 0 } 'T0' { 1 } 'T0-' { 2 } 'T1' { 3 } 'T2-' { 4 } } } } | Select-Object -First 6 | ForEach-Object { "$($_.Team)($($_.Tier))" }) -join '、')
 
     # 满红 = 概览满红总数(详情页无武将级红度; marks 的「极」是觉醒非满红)
     $fullRedAll = 0

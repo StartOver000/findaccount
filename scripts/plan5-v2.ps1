@@ -35,7 +35,7 @@ foreach ($acc in $targets) {
         if ($team.Heroes -contains '弓诸葛' -or $team.Heroes -contains '司马懿') { continue }
         $st = Get-TeamLandStatus $team $heroMarks $accTac $accEq
         if (-not $st) { continue }
-        $tierScore = switch ($team.Tier) { 'T0+' { 8 } 'T0-' { 5 } 'T1' { 3 } 'T2-' { 1 } default { 0 } }
+        $tierScore = switch ($team.Tier) { 'T0+' { 8 } 'T0' { 7 } 'T0-' { 5 } 'T1' { 3 } 'T2-' { 1 } default { 0 } }
         if ($st.TMissCount -eq 0 -and $st.EMissCount -eq 0) { $land = 3 }
         elseif ($st.TMissCount -eq 0) { $land = 2 }
         elseif ($st.EMissCount -eq 0) { $land = 1 }

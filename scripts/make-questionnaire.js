@@ -15,15 +15,15 @@ const OUT = path.join(ROOT, 'docs', '找号需求问卷.xlsx');
 // ---- 解析队伍强度排行榜.md → 分档队伍 ----
 function parseRank() {
   const md = fs.readFileSync(path.join(ROOT, 'docs', '队伍强度排行榜.md'), 'utf-8');
-  const tiers = { 'T0+': [], 'T0-': [], 'T1': [], 'T2-': [] };
+  const tiers = { 'T0+': [], 'T0': [], 'T0-': [], 'T1': [], 'T2-': [] };
   const summary = {};
   for (const line of md.split(/\r?\n/)) {
-    const sm = line.match(/^\|\s*(T0\+|T0-|T1|T2-)\s*\|\s*(.+?)\s*\|\s*$/);
+    const sm = line.match(/^\|\s*(T0\+|T0-|T0|T1|T2-)\s*\|\s*(.+?)\s*\|\s*$/);
     if (sm) summary[sm[1]] = sm[2].split('、').map(name => name.trim()).filter(Boolean);
   }
   let cur = null;
   for (const line of md.split(/\r?\n/)) {   // 兼容 CRLF 行尾
-    const tm = line.match(/^##\s+(T0\+|T0-|T1|T2-)\s*$/);
+    const tm = line.match(/^##\s+(T0\+|T0-|T0|T1|T2-)\s*$/);
     if (tm) { cur = tm[1]; continue; }
     // 其他二级标题结束当前档位，避免后续附录被误算进上一档。
     if (/^##\s+/.test(line)) { cur = null; continue; }
@@ -41,7 +41,7 @@ function parseRank() {
   return tiers;
 }
 const tiers = parseRank();
-const coreOptions = [...tiers['T0+'], ...tiers['T0-']].join(';');
+const coreOptions = [...tiers['T0+'], ...tiers['T0'], ...tiers['T0-']].join(';');
 
 // [问题, 选项(分号分隔, 空=手填), 类型, 是否必填]
 const QUESTIONS = [
@@ -50,7 +50,7 @@ const QUESTIONS = [
   ['区服范围(必填)', '试师号;备战区;指定服务器;不限制', 'single', true],
   ['指定服务器(仅当区服选指定)', '例如 X5836', 'text', false],
   ['核心队伍(多选)', coreOptions, 'multi', false],
-  ['强度档要求', '至少1支T0+;至少2支T0级;T1为主即可;越多越好', 'single', false],
+  ['强度档要求', '至少1支T0+;至少1支T0;至少2支T0级;T1为主即可;越多越好', 'single', false],
   ['到手强度偏好', '武将全+战法宝可缺(推荐);到手即战力;只缺宝物;都要齐', 'single', false],
   ['可接受补件(多选)', '宝物;战法;都可以;完全不补', 'multi', false],
   ['五星武将下限', '', 'num', false],
@@ -85,7 +85,7 @@ const QUESTIONS = [
   let r = 3;
   for (const [q, opts, type, required] of QUESTIONS) {
     ws.getCell(`A${r}`).value = q;
-    ws.getCell(`B${r}`).value = (q === '核心队伍(多选)') ? 'T0+和T0-队伍(完整榜单见Sheet2):' + opts : opts;
+    ws.getCell(`B${r}`).value = (q === '核心队伍(多选)') ? 'T0+/T0/T0-队伍(完整榜单见Sheet2):' + opts : opts;
     ws.getCell(`C${r}`).value = '';
     ws.getCell(`D${r}`).value = '';
     ws.getCell(`A${r}`).font = { bold: true, color: required ? { argb: 'FFC00000' } : { argb: 'FF000000' } };
@@ -114,8 +114,8 @@ const QUESTIONS = [
 
   // ---- Sheet2: 队伍强度排行榜 ----
   const ws2 = wb.addWorksheet('队伍强度榜');
-  const tierOrder = ['T0+', 'T0-', 'T1', 'T2-'];
-  const tierColor = { 'T0+': 'FFC00000', 'T0-': 'FFED7D31', 'T1': 'FF4472C4', 'T2-': 'FF808080' };
+  const tierOrder = ['T0+', 'T0', 'T0-', 'T1', 'T2-'];
+  const tierColor = { 'T0+': 'FFC00000', 'T0': 'FFED7D31', 'T0-': 'FFFFC000', 'T1': 'FF4472C4', 'T2-': 'FF808080' };
   // 表头: 分档 + 队伍数
   tierOrder.forEach((t, i) => {
     const cell = ws2.getCell(1, i + 1);
@@ -132,11 +132,11 @@ const QUESTIONS = [
       if (i < tiers[t].length) ws2.getCell(i + 2, c + 1).value = tiers[t][i];
     });
   }
-  ws2.getCell('A1').comment = 'T0+=顶级; T0-=一线; T1=主流; T2-=已降级';
+  ws2.getCell('A1').comment = 'T0+=顶级; T0=一线; T0-=二线; T1=主流; T2-=已降级';
   ws2.views = [{ state: 'frozen', ySplit: 1 }];
 
   await wb.xlsx.writeFile(OUT);
   console.log('✅ 问卷已生成:', OUT);
-  console.log(`   Sheet1 问卷(${QUESTIONS.length}题, 核心队伍下拉${coreOptions.split(';').length}支T0+/T0-队伍)`);
-  console.log(`   Sheet2 队伍强度榜: T0+${tiers['T0+'].length} / T0-${tiers['T0-'].length} / T1${tiers['T1'].length} / T2-${tiers['T2-'].length}`);
+  console.log(`   Sheet1 问卷(${QUESTIONS.length}题, 核心队伍下拉${coreOptions.split(';').length}支T0+/T0/T0-队伍)`);
+  console.log(`   Sheet2 队伍强度榜: T0+${tiers['T0+'].length} / T0${tiers['T0'].length} / T0-${tiers['T0-'].length} / T1${tiers['T1'].length} / T2-${tiers['T2-'].length}`);
 })();

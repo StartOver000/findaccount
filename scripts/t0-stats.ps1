@@ -47,19 +47,21 @@ $tier = ''; $cur = $null; $heroes = @(); $teams = @(); $t1list = @(); $t2list = 
 # 速览是权威名单: 详细章节里已移档/过时的旧队伍一律跳过
 $summary = @{}
 foreach ($sl in $rank) {
-    if ($sl -match '^\|\s*(T0\+|T0-|T1|T2-)\s*\|\s*(.+?)\s*\|\s*$') {
+    if ($sl -match '^\|\s*(T0\+|T0-|T0|T1|T2-)\s*\|\s*(.+?)\s*\|\s*$') {
         $summary[$Matches[1]] = @($Matches[2] -split '、' | ForEach-Object { $_.Trim() })
     }
 }
 foreach ($line in $rank) {
-    if ($line -match '^##\s+(T0\+|T0-|T1|T2-)\s*$') { $tier = $Matches[1]; continue }
+    if ($line -match '^##\s+(T0\+|T0-|T0|T1|T2-)\s*$') { $tier = $Matches[1]; continue }
     # 其他二级标题(如"追加队伍"等附录)结束当前档位, 避免误算
     if ($line -match '^##\s+') { $tier = ''; $cur = $null; $heroes = @(); $t1list = @(); $t2list = @(); $eql = @(); continue }
     if ($line -match '^###\s+(.+)$') {
         $raw = $Matches[1].Trim(); $pt = $tier
         if ($raw -match '已降级') { $pt = 'T2-' }
-        $raw = ($raw -split '：')[-1].Trim(); $raw = ($raw -replace '（.+?）','').Trim()
-        if ($raw -and $summary.ContainsKey($pt) -and ($summary[$pt] -contains $raw)) { $cur = $raw; $heroes = @(); $t1list = @(); $t2list = @(); $eql = @() }
+        $raw = ($raw -split '：')[-1].Trim(); $raw = ($raw -replace '^\d+[.、]\s*','').Trim()
+        $raw = ($raw -replace '（.+?）','').Trim()
+        # 速览缺该档(如T0-)时以正文为准
+        if ($raw -and (( -not $summary.ContainsKey($pt)) -or ($summary[$pt] -contains $raw))) { $cur = $raw; $heroes = @(); $t1list = @(); $t2list = @(); $eql = @() }
         continue
     }
     if ($cur -and $line -match '^\|\s*([^|]+?)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|') {
@@ -72,7 +74,7 @@ foreach ($line in $rank) {
         }
     }
 }
-$t0Teams = @($teams | Where-Object { $_.Tier -in @('T0+','T0-') -and $_.Heroes -notcontains '弓诸葛' -and $_.Heroes -notcontains '司马懿' })
+$t0Teams = @($teams | Where-Object { $_.Tier -in @('T0+','T0','T0-') -and $_.Heroes -notcontains '弓诸葛' -and $_.Heroes -notcontains '司马懿' })
 $data = Get-Content -LiteralPath $DataFile -Raw -Encoding UTF8 | ConvertFrom-Json
 Write-Host "T0级队伍定义数(不含弓诸葛/司马懿): $($t0Teams.Count)"
 Write-Host ''

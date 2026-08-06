@@ -52,19 +52,21 @@ $tier = ''; $cur = $null; $heroes = @(); $teams = @(); $t1list = @(); $t2list = 
 # 速览是权威名单: 详细章节里已移档/过时的旧队伍一律跳过
 $summary = @{}
 foreach ($sl in $rank) {
-    if ($sl -match '^\|\s*(T0\+|T0-|T1|T2-)\s*\|\s*(.+?)\s*\|\s*$') {
+    if ($sl -match '^\|\s*(T0\+|T0-|T0|T1|T2-)\s*\|\s*(.+?)\s*\|\s*$') {
         $summary[$Matches[1]] = @($Matches[2] -split '、' | ForEach-Object { $_.Trim() })
     }
 }
 foreach ($line in $rank) {
-    if ($line -match '^##\s+(T0\+|T0-|T1|T2-)\s*$') { $tier = $Matches[1]; continue }
+    if ($line -match '^##\s+(T0\+|T0-|T0|T1|T2-)\s*$') { $tier = $Matches[1]; continue }
     # 其他二级标题(如"追加队伍"等附录)结束当前档位, 避免误算
     if ($line -match '^##\s+') { $tier = ''; $cur = $null; $heroes = @(); $t1list = @(); $t2list = @(); $eql = @(); continue }
     if ($line -match '^###\s+(.+)$') {
         $raw = $Matches[1].Trim(); $pt = $tier
         if ($raw -match '已降级') { $pt = 'T2-' }
-        $raw = ($raw -split '：')[-1].Trim(); $raw = ($raw -replace '（.+?）','').Trim()
-        if ($raw -and $summary.ContainsKey($pt) -and ($summary[$pt] -contains $raw)) { $cur = $raw; $heroes = @(); $t1list = @(); $t2list = @(); $eql = @() }
+        $raw = ($raw -split '：')[-1].Trim(); $raw = ($raw -replace '^\d+[.、]\s*','').Trim()
+        $raw = ($raw -replace '（.+?）','').Trim()
+        # 速览缺该档(如T0-)时以正文为准
+        if ($raw -and (( -not $summary.ContainsKey($pt)) -or ($summary[$pt] -contains $raw))) { $cur = $raw; $heroes = @(); $t1list = @(); $t2list = @(); $eql = @() }
         continue
     }
     if ($cur -and $line -match '^\|\s*([^|]+?)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|') {
@@ -121,7 +123,7 @@ foreach ($acc in $data) {
         else { $st = '缺战法+宝' }
         $rows += [pscustomobject]@{ 队伍=$team.Team; 档=$team.Tier; 状态=$st; 战法="$tHit/$needTCount"; 缺战法=($tMiss -join '/'); 宝="$eHit/$needECount"; 缺宝=($eMiss -join '/') }
     }
-    $rows = @($rows | Sort-Object @{Expression={ if($_.档 -eq 'T0+'){0}elseif($_.档 -eq 'T0-'){1}elseif($_.档 -eq 'T1'){2}else{3} } })
+    $rows = @($rows | Sort-Object @{Expression={ if($_.档 -eq 'T0+'){0}elseif($_.档 -eq 'T0'){1}elseif($_.档 -eq 'T0-'){2}elseif($_.档 -eq 'T1'){3}else{4} } })
     $listSrv = ''
     if ($acc.list -and $acc.list.server) { $listSrv = $acc.list.server } else { $listSrv = $ov.server }
     "`n===== $listSrv ¥$($ov.price) 队伍落地 ====="
