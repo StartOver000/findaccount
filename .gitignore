@@ -1,0 +1,7 @@
+node_modules/
+.cbg-profile/
+*.log
+data/tmp/
+*.local.json
+*.local.xlsx
+cbg_page.html

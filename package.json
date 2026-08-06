@@ -1,0 +1,14 @@
+{
+  "name": "cbg-account-eval",
+  "version": "1.0.0",
+  "private": true,
+  "description": "率土之滨藏宝阁账号批量采集与评估",
+  "scripts": {
+    "extract": "node cbg-detail-extract.js",
+    "analyze": "powershell -ExecutionPolicy Bypass -File analyze-accounts.ps1"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "playwright": "^1.62.1"
+  }
+}

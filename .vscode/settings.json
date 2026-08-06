@@ -1,0 +1,23 @@
+{
+  "mcp.servers": {
+    "filesystem": {
+      "command": "mcp-server-filesystem",
+      "args": [
+        "d:\\WorkSpace\\率土之滨"
+      ]
+    },
+    "playwright": {
+      "command": "playwright-mcp",
+      "args": [
+        "--headless"
+      ]
+    },
+    "sqlite": {
+      "command": "mcp-server-sqlite",
+      "args": [
+        "--db",
+        "d:\\WorkSpace\\率土之滨\\data.db"
+      ]
+    }
+  }
+}

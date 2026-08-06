@@ -1,0 +1,302 @@
+[
+  {
+    "Price": 1500,
+    "Server": 5860,
+    "Stars": 106,
+    "Tactics": 17,
+    "Equips": 16,
+    "Limited": 4,
+    "Index": 196,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5866,
+    "Stars": 119,
+    "Tactics": 21,
+    "Equips": 20,
+    "Limited": 4,
+    "Index": 229,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5836,
+    "Stars": 91,
+    "Tactics": 23,
+    "Equips": 22,
+    "Limited": 6,
+    "Index": 215,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5864,
+    "Stars": 102,
+    "Tactics": 20,
+    "Equips": 15,
+    "Limited": 3,
+    "Index": 193,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5861,
+    "Stars": 103,
+    "Tactics": 21,
+    "Equips": 22,
+    "Limited": 3,
+    "Index": 217,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5813,
+    "Stars": 91,
+    "Tactics": 20,
+    "Equips": 11,
+    "Limited": 4,
+    "Index": 172,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5844,
+    "Stars": 121,
+    "Tactics": 23,
+    "Equips": 21,
+    "Limited": 5,
+    "Index": 240,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5813,
+    "Stars": 118,
+    "Tactics": 25,
+    "Equips": 21,
+    "Limited": 4,
+    "Index": 239,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5829,
+    "Stars": 92,
+    "Tactics": 20,
+    "Equips": 13,
+    "Limited": 3,
+    "Index": 177,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5818,
+    "Stars": 105,
+    "Tactics": 21,
+    "Equips": 23,
+    "Limited": 4,
+    "Index": 224,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5788,
+    "Stars": 92,
+    "Tactics": 25,
+    "Equips": 13,
+    "Limited": 2,
+    "Index": 185,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5830,
+    "Stars": 102,
+    "Tactics": 20,
+    "Equips": 16,
+    "Limited": 1,
+    "Index": 192,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5836,
+    "Stars": 97,
+    "Tactics": 22,
+    "Equips": 12,
+    "Limited": 5,
+    "Index": 187,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5777,
+    "Stars": 89,
+    "Tactics": 23,
+    "Equips": 12,
+    "Limited": 0,
+    "Index": 171,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5836,
+    "Stars": 106,
+    "Tactics": 22,
+    "Equips": 16,
+    "Limited": 4,
+    "Index": 206,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5834,
+    "Stars": 90,
+    "Tactics": 21,
+    "Equips": 16,
+    "Limited": 5,
+    "Index": 190,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5835,
+    "Stars": 97,
+    "Tactics": 23,
+    "Equips": 12,
+    "Limited": 7,
+    "Index": 193,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5802,
+    "Stars": 114,
+    "Tactics": 20,
+    "Equips": 17,
+    "Limited": 3,
+    "Index": 211,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5830,
+    "Stars": 89,
+    "Tactics": 23,
+    "Equips": 14,
+    "Limited": 2,
+    "Index": 181,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1500,
+    "Server": 5814,
+    "Stars": 85,
+    "Tactics": 20,
+    "Equips": 27,
+    "Limited": 1,
+    "Index": 208,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1550,
+    "Server": 5861,
+    "Stars": 85,
+    "Tactics": 22,
+    "Equips": 16,
+    "Limited": 3,
+    "Index": 183,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1588,
+    "Server": 5799,
+    "Stars": 91,
+    "Tactics": 18,
+    "Equips": 21,
+    "Limited": 3,
+    "Index": 196,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1600,
+    "Server": 5790,
+    "Stars": 90,
+    "Tactics": 22,
+    "Equips": 13,
+    "Limited": 6,
+    "Index": 185,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1600,
+    "Server": 5866,
+    "Stars": 100,
+    "Tactics": 19,
+    "Equips": 16,
+    "Limited": 3,
+    "Index": 192,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1600,
+    "Server": 5864,
+    "Stars": 103,
+    "Tactics": 19,
+    "Equips": 16,
+    "Limited": 3,
+    "Index": 195,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1600,
+    "Server": 5804,
+    "Stars": 108,
+    "Tactics": 21,
+    "Equips": 21,
+    "Limited": 2,
+    "Index": 217,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1600,
+    "Server": 5859,
+    "Stars": 112,
+    "Tactics": 21,
+    "Equips": 19,
+    "Limited": 3,
+    "Index": 217,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1600,
+    "Server": 5836,
+    "Stars": 85,
+    "Tactics": 20,
+    "Equips": 21,
+    "Limited": 6,
+    "Index": 200,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1600,
+    "Server": 5774,
+    "Stars": 98,
+    "Tactics": 21,
+    "Equips": 15,
+    "Limited": 2,
+    "Index": 189,
+    "Tier": "C1200-1600"
+  },
+  {
+    "Price": 1600,
+    "Server": 5817,
+    "Stars": 90,
+    "Tactics": 24,
+    "Equips": 18,
+    "Limited": 2,
+    "Index": 196,
+    "Tier": "C1200-1600"
+  }
+]
