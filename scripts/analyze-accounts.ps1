@@ -4,9 +4,9 @@
 # 输出: 控制台排名表 + accounts-report.md
 #
 # 评估维度:
-#   - 武将匹配分: Q3榜单 T0+=10 / T0-=6 / T1=3 / T2-=1 (含司马懿/弓诸葛版本硬规则跳过)
+#   - 武将匹配分: Q3榜单 T0+=10 / T0=8 / T1=3 / T2-=1 (含司马懿/弓诸葛版本硬规则跳过)
 #   - 满红: 采用概览满红总数; 核心觉醒 = 觉醒(marks含极)且为核心武将
-#   - 战法/宝物: 对照 T0+/T0- 队伍需求统计命中数(参考)
+#   - 战法/宝物: 对照 T0+/T0 队伍需求统计命中数(参考)
 #   - 吃红度队伍降权: 三典藏菜刀/大张鲁/沙魏马/胡芳网红/父子队 匹配时减半
 
 param(
@@ -176,6 +176,7 @@ foreach ($acc in $accounts) {
         $score += $w
     }
     $t0p = @($matched | Where-Object Tier -eq 'T0+').Count
+    $t0 = @($matched | Where-Object Tier -eq 'T0').Count
     $t0m = @($matched | Where-Object Tier -eq 'T0-').Count
     $topTeams = (($matched | Sort-Object @{ Expression = { switch ($_.Tier) { 'T0+' { 0 } 'T0' { 1 } 'T0-' { 2 } 'T1' { 3 } 'T2-' { 4 } } } } | Select-Object -First 6 | ForEach-Object { "$($_.Team)($($_.Tier))" }) -join '、')
 
@@ -211,6 +212,7 @@ foreach ($acc in $accounts) {
         Price = $ov.price
         Score = $score
         T0p = $t0p
+        T0 = $t0
         T0m = $t0m
         FullRedAll = $fullRedAll
         FullRedCore = $fullRedCore
@@ -226,9 +228,9 @@ foreach ($acc in $accounts) {
 # ========== 3. 输出排名 ==========
 Write-Host ''
 Write-Host '===== 账号评估排名(按武将分降序) ====='
-Write-Host ("{0,-18} {1,6} {2,4} {3,4} {4,4} {5,4} {6,4} {7,4} | {8}" -f '账号', '价格', '分', 'T0+', 'T0-', '满红', '核觉醒', '战法/宝', '队伍')
+Write-Host ("{0,-18} {1,6} {2,4} {3,4} {4,4} {5,4} {6,4} {7,4} | {8}" -f '账号', '价格', '分', 'T0+', 'T0', '满红', '核觉醒', '战法/宝', '队伍')
 foreach ($r in ($report | Sort-Object Price, Score -Descending)) {
-    Write-Host ("{0,-18} {1,6} {2,4} {3,4} {4,4} {5,4} {6,4} {7,3}/{8,3} | {9}" -f $r.Label, $r.Price, $r.Score, $r.T0p, $r.T0m, $r.FullRedAll, $r.FullRedCore, $r.TacticHit, $r.EquipHit, $r.TopTeams)
+    Write-Host ("{0,-18} {1,6} {2,4} {3,4} {4,4} {5,4} {6,4} {7,3}/{8,3} | {9}" -f $r.Label, $r.Price, $r.Score, $r.T0p, $r.T0, $r.FullRedAll, $r.FullRedCore, $r.TacticHit, $r.EquipHit, $r.TopTeams)
 }
 
 # 生成报告文件
@@ -237,10 +239,10 @@ $sb += '# 账号评估报告 - 20260807'
 $sb += ''
 $sb += '> 武将70% + 战法15% + 宝物10% + 红度5% 框架; 满红=概览满红数, 核心觉醒=觉醒核心武将; 吃红度队伍(三典藏/大张鲁/沙魏马/胡芳网红/父子队)降权'
 $sb += ''
-$sb += '| 账号 | 价格 | 武将分 | T0+ | T0- | 满红 | 核心觉醒 | 战法命中 | 宝物命中 | 代表队伍 |'
+$sb += '| 账号 | 价格 | 武将分 | T0+ | T0 | 满红 | 核心觉醒 | 战法命中 | 宝物命中 | 代表队伍 |'
 $sb += '|---|---|---|---|---|---|---|---|---|---|'
 foreach ($r in ($report | Sort-Object Price, Score -Descending)) {
-    $sb += "| $($r.Label) | $($r.Price) | $($r.Score) | $($r.T0p) | $($r.T0m) | $($r.FullRedAll) | $($r.FullRedCore) | $($r.TacticHit)/$($r.TacticTotal) | $($r.EquipHit)/$($r.EquipTotal) | $($r.TopTeams) |"
+    $sb += "| $($r.Label) | $($r.Price) | $($r.Score) | $($r.T0p) | $($r.T0) | $($r.FullRedAll) | $($r.FullRedCore) | $($r.TacticHit)/$($r.TacticTotal) | $($r.EquipHit)/$($r.EquipTotal) | $($r.TopTeams) |"
 }
 $sb += ''
 $sb += '## 核心觉醒武将明细'

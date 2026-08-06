@@ -55,7 +55,7 @@ foreach ($acc in $data) {
     $listSrv = ''; if ($acc.list -and $acc.list.server) { $listSrv = $acc.list.server } else { $listSrv = $acc.overview.server }
     $heroMarks = @{}
     foreach ($h in $acc.heroes) { if (-not $heroMarks.ContainsKey($h.name)) { $heroMarks[$h.name] = @() }; $heroMarks[$h.name] += $h.marks }
-    $t0p = @(); $t0m = @()
+    $t0p = @(); $t0List = @(); $t0m = @()
     foreach ($team in $t0) {
         $ok = $true
         foreach ($h in $team.Heroes) {
@@ -64,18 +64,24 @@ foreach ($acc in $data) {
             $req = $versionReq[$h]
             if ($req) { $s2 = $false; foreach ($mk in $heroMarks[$nh]) { if ($mk -match $req) { $s2 = $true; break } }; if (-not $s2) { $ok = $false; break } }
         }
-        if ($ok) { if ($team.Tier -eq 'T0+') { $t0p += $team.Team } else { $t0m += $team.Team } }
+        if ($ok) {
+            if ($team.Tier -eq 'T0+') { $t0p += $team.Team }
+            elseif ($team.Tier -eq 'T0') { $t0List += $team.Team }
+            else { $t0m += $team.Team }
+        }
     }
     $report += [pscustomobject]@{
         Label = "$listSrv ¥$($acc.overview.price)"
         T0p = @($t0p).Count
+        T0 = @($t0List).Count
         T0m = @($t0m).Count
-        Total = @($t0p).Count + @($t0m).Count
+        Total = @($t0p).Count + @($t0List).Count + @($t0m).Count
         T0pList = ($t0p -join '、')
+        T0List = ($t0List -join '、')
         T0mList = ($t0m -join '、')
     }
 }
-Write-Host ('{0,-16} {1,5} {2,5} {3,5} | T0+武将队伍 | T0-武将队伍' -f '账号', 'T0+', 'T0-', '合计')
+Write-Host ('{0,-16} {1,5} {2,5} {3,5} {4,5} | T0+武将队伍 | T0武将队伍 | T0-武将队伍' -f '账号', 'T0+', 'T0', 'T0-', '合计')
 foreach ($r in ($report | Sort-Object Total, T0p -Descending | Select-Object -First 15)) {
-    Write-Host ('{0,-16} {1,5} {2,5} {3,5} | {4} | {5}' -f $r.Label, $r.T0p, $r.T0m, $r.Total, $r.T0pList, $r.T0mList)
+    Write-Host ('{0,-16} {1,5} {2,5} {3,5} {4,5} | {5} | {6} | {7}' -f $r.Label, $r.T0p, $r.T0, $r.T0m, $r.Total, $r.T0pList, $r.T0List, $r.T0mList)
 }

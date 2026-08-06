@@ -123,7 +123,7 @@ foreach ($acc in $data) {
         else { $st = '缺战法+宝' }
         $rows += [pscustomobject]@{ 队伍=$team.Team; 档=$team.Tier; 状态=$st; 战法="$tHit/$needTCount"; 缺战法=($tMiss -join '/'); 宝="$eHit/$needECount"; 缺宝=($eMiss -join '/') }
     }
-    $rows = @($rows | Sort-Object @{Expression={ if($_.档 -eq 'T0+'){0}elseif($_.档 -eq 'T0'){1}elseif($_.档 -eq 'T0-'){2}elseif($_.档 -eq 'T1'){3}else{4} } })
+    $rows = @($rows | Sort-Object @{Expression={ if($_.档 -eq 'T0+'){0}elseif($_.档 -eq 'T0'){1}elseif($_.档 -eq 'T1'){2}else{3} } })
     $listSrv = ''
     if ($acc.list -and $acc.list.server) { $listSrv = $acc.list.server } else { $listSrv = $ov.server }
     "`n===== $listSrv ¥$($ov.price) 队伍落地 ====="

@@ -1,4 +1,4 @@
-﻿# 统计49个号里 T0+/T0- 队伍的各落地状态分布(回答"2000价位T0队伍多不多")
+﻿# 统计49个号里 T0+/T0 队伍的各落地状态分布(回答"2000价位T0队伍多不多")
 param([string]$DataFile = (Join-Path (Split-Path $PSScriptRoot -Parent) 'data\accounts-final.json'))
 
 $rank = Get-Content -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'docs\队伍强度排行榜.md') -Encoding UTF8
@@ -74,7 +74,7 @@ foreach ($line in $rank) {
         }
     }
 }
-$t0Teams = @($teams | Where-Object { $_.Tier -in @('T0+','T0','T0-') -and $_.Heroes -notcontains '弓诸葛' -and $_.Heroes -notcontains '司马懿' })
+$t0Teams = @($teams | Where-Object { $_.Tier -in @('T0+','T0') -and $_.Heroes -notcontains '弓诸葛' -and $_.Heroes -notcontains '司马懿' })
 $data = Get-Content -LiteralPath $DataFile -Raw -Encoding UTF8 | ConvertFrom-Json
 Write-Host "T0级队伍定义数(不含弓诸葛/司马懿): $($t0Teams.Count)"
 Write-Host ''
@@ -110,7 +110,7 @@ foreach ($team in $t0Teams) {
     Write-Host ('{0,-12} {1,5} {2,5} {3,6} {4,6} {5,6} {6,6} | {7}' -f $team.Team, $team.Tier, $complete.Count, $onlyEquip.Count, $needTac.Count, $both.Count, $noHero.Count, ($complete -join ','))
 }
 Write-Host ''
-Write-Host '===== T0+/T0- 队伍完整或只缺宝的账号 TOP ====='
+Write-Host '===== T0+/T0 队伍完整或只缺宝的账号 TOP ====='
 foreach ($team in $t0Teams) {
     foreach ($acc in $data) {
         if (-not $acc.overview) { continue }
