@@ -14,9 +14,9 @@
 //   - 详情批量 BATCH=6 + 失败自动重试 2 次(之前 104 个空号多为偶发失败)
 //   - 断点续采: 已保存的 OUT 里的 ordersn 自动跳过
 // 用法:
-//   node scripts/api-collect.js [OUT.json] [priceMin] [priceMax]
-//   node scripts/api-collect.js [OUT.json] [priceMin] [priceMax] [browser-detail.json]
+//   node scripts/api-collect.js [OUT.json] [priceMin] [priceMax] [browser-detail.json] [topN]
 //     browser-detail.json: 可选, 传了则只采「浏览器没有的号」(补漏), 省时+防限流
+//     topN: 可选数字, 只采 desc 五星数最高的前 N 个号(精选模式, 防限流)
 //   前置: .cbg-profile 已登录且完成手机验证(浏览器打开过列表页即可)
 // ============================================================
 const { chromium } = require('playwright');
@@ -29,6 +29,7 @@ const OUT = process.argv[2] || path.join(ROOT, 'data', 'accounts-api.json');
 const PRICE_MIN = process.argv[3] || '150000';
 const PRICE_MAX = process.argv[4] || '250000';
 const BROWSER_FILE = process.argv[5] || '';
+const TOPN = process.argv[6] ? parseInt(process.argv[6], 10) : 0;
 
 const SERVERIDS = '44748,44749,44750,44751,44752,44753,44754,44755,44761,44762,44763,44764,44765,44766,44773,44774,44775,44776,44777,44778,44779,44788,44789,44790,44791,44792,44793,44794,44804,44805,44808,44809,44810,44811,44812,44819,44820,44821,44822,44823,44824,44834,44835,44836,44837,44838,44839,44840,44841,44854,44855,44856,44857,44858,44859,44860,44861,44862,44863,44869,44870,44871,44872,44873,44874';
 const LIST_URL = `https://stzb.cbg.163.com/cgi/mweb/pl?search_type=role&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=${SERVERIDS}&price_min=${PRICE_MIN}&price_max=${PRICE_MAX}&five_star_hero_count=85&duanzao_gear_cnt=12`;
@@ -115,7 +116,7 @@ async function main() {
           for (const c of arr) out.push({ ordersn: c.game_ordersn, server_name: c.server_name, price: c.price, sumup: c.desc_sumup_short || '' });
           const totalPages = j.pager ? j.pager.total_pages : 0;
           if (p >= totalPages || totalPages === 0) break;
-          await new Promise(r => setTimeout(r, 400));
+          await new Promise(r => setTimeout(r, 800));   // 翻页间隔 800ms 防限流
         }
         return out;
       })();
@@ -146,43 +147,53 @@ async function main() {
     const d = parseDesc(c.sumup);
     if (!d || d.star5 < 85 || d.gear < 12) { skip++; continue; }
     pass++;
-    todo.push(c);
+    todo.push({ ...c, star5: d.star5, gear: d.gear });
   }
-  console.log(`filter: need-fetch ${pass} | browser-skip ${brSkip} | desc-skip ${skip} | resumed ${resumed}`);
+  // TopN 精选: 只采 desc 五星数最高的前 N 个(防限流)
+  if (TOPN > 0 && todo.length > TOPN) {
+    todo.sort((a, b) => b.star5 - a.star5 || b.gear - a.gear);
+    console.log(`topN 精选: 只采五星数前 ${TOPN} 个 (共 ${todo.length} 个可采)`);
+    todo.length = TOPN;
+  }
+  console.log(`filter: need-fetch ${todo.length} | browser-skip ${brSkip} | desc-skip ${skip} | resumed ${resumed}`);
 
-  // ---- 2. 详情(批量 + 重试) ----
-  console.log('== 2/2 fetch detail (batch 4, retry 3) ==');
+  // ---- 2. 详情(慢速单采 + 限流长退避, 防止账号级风控) ----
+  // 教训: 批量并发(>3) 或 密集请求 会触发藏宝阁账号级限流(eb-re410),
+  //       一旦触发, 列表+详情接口同时挂掉且持续 15 分钟+。
+  //       本版改为: 串行单采, 每号间隔 3-4 秒, 失败指数退避(5s/15s/30s/60s)。
+  console.log('== 2/2 fetch detail (serial, 3s interval, long backoff) ==');
   const results = [...done.values()];
-  const BATCH = 4;
   let failCount = 0;
-  for (let i = 0; i < todo.length; i += BATCH) {
-    const batch = todo.slice(i, i + BATCH);
-    const data = await Promise.all(batch.map(c => fetchDetail(page, c)));
-
-    // 重试失败的(desc 为空 或 card 为空)
-    const retry = [];
-    for (const d of data) {
-      if (!d.desc || !(d.desc.card || []).length) { retry.push(d); continue; }
-      results.push(buildResult(d));
-    }
-
-    // 重试逻辑(最多3轮, 系统繁忙时等待更长)
-    for (let round = 1; round <= 3 && retry.length; round++) {
-      await sleep(800 * round);
-      const again = [];
-      const rd = await Promise.all(retry.map(c => fetchDetail(page, c)));
-      for (const d of rd) {
-        if (!d.desc || !(d.desc.card || []).length) { again.push(d); continue; }
+  let consecutiveFail = 0;
+  for (let i = 0; i < todo.length; i++) {
+    const c = todo[i];
+    let ok = false;
+    // 尝试: 首次 + 最多4次重试(指数退避)
+    for (let attempt = 0; attempt <= 4 && !ok; attempt++) {
+      if (attempt > 0) await sleep(5000 * Math.pow(2, attempt - 1));
+      const d = await fetchDetail(page, c);
+      if (d.desc && (d.desc.card || []).length) {
         results.push(buildResult(d));
+        ok = true;
+        consecutiveFail = 0;
       }
-      retry.length = 0;
-      retry.push(...again);
     }
-    failCount += retry.length;
-
+    if (!ok) {
+      failCount++;
+      consecutiveFail++;
+      console.log(`  fail: ${c.ordersn} (连续失败 ${consecutiveFail})`);
+      // 连续失败 >=3 → 疑似限流, 长退避 60-120 秒
+      if (consecutiveFail >= 3) {
+        const waitMs = 60000 + Math.floor(Math.random() * 60000);
+        console.log(`  ⚠️ 疑似限流, 暂停 ${Math.round(waitMs / 1000)} 秒...`);
+        await sleep(waitMs);
+        consecutiveFail = 0;
+      }
+    } else {
+      console.log(`  ${i + 1}/${todo.length} done`);
+    }
     fs.writeFileSync(OUT, JSON.stringify(results, null, 1), 'utf-8');
-    console.log(`  ${Math.min(i + BATCH, todo.length)}/${todo.length} (fail-after-retry: ${failCount})`);
-    await sleep(400 + Math.floor(Math.random() * 500));
+    await sleep(3000 + Math.floor(Math.random() * 1000));   // 每号间隔 3-4 秒
   }
 
   fs.writeFileSync(OUT, JSON.stringify(results, null, 1), 'utf-8');
