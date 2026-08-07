@@ -35,7 +35,7 @@ $versionReq = @{
     '汉苟彧' = '汉'; '汉孙坚' = '汉'; '汉董' = '汉'; '汉吕' = '汉'
     'XP姜维' = 'XP'; 'XP孙权' = 'XP'; 'XP周瑜' = 'XP'
     '弓吕' = '弓'; '群貂' = '群'; '新黄盖' = '新'
-    '曹操' = '魏'; '吕吕' = '群'; '孙权' = '吴'; '董卓' = '群'; '姜维' = '蜀'
+    '曹操' = '魏'; '关羽' = '蜀'; '吕吕' = '群'; '孙权' = '吴'; '董卓' = '群'; '姜维' = '蜀'
 }
 function Test-TacticHit([string]$short, $accSet) {
     if ($tacticMap.ContainsKey($short)) { foreach ($f in $tacticMap[$short]) { if ($accSet[$f]) { return $true } } }
