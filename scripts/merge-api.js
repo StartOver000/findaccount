@@ -58,13 +58,23 @@ function main() {
   }
 
   // API 生成(浏览器没有的号才生成; 浏览器有则优先用浏览器marks)
+  // 重要: API card 的 quality 字段才是真实星级(quality===5 才是五星)!
+  //       不能用名字白名单(star5-names)过滤——四星同名武将(四星关羽/四星曹操/四星曹彰等)
+  //       名字也在白名单里,会全混进来。这是 v2 的严重 bug,已修正为 quality===5。
+  // 另外: API 列表筛选参数 five_star_hero_count 实际未生效(采回大量五星不足的号),
+  //       且部分号详情 heroes 为空。故 API 补号必须满足原筛选条件才保留:
+  //       真实五星>=85 且 宝物>=12,否则剔除(避免污染排名)。
   const added = [];
+  let skippedLow = 0, skippedEmpty = 0;
   for (const a of api) {
     if (browserSns.has(a.list.ordersn)) continue;
-    const heroes = (a.heroes || []).filter(h => star5.has(h.name)).map(h => ({
+    const heroes = (a.heroes || []).filter(h => h.quality === 5).map(h => ({
       name: h.name,
       marks: [campOf(h) + (h.awake ? '极' : '') + (h.season === 'SP' ? 'SP' : (h.season || 'N'))]
     }));
+    if (heroes.length === 0) { skippedEmpty++; continue; }
+    const equips = a.equips || [];
+    if (heroes.length < 85 || equips.length < 12) { skippedLow++; continue; }
     const yuanInt = String(Math.round((a.list.price || 0) / 100));
     const yuan = yuanInt.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     added.push({
@@ -73,9 +83,10 @@ function main() {
       heroCount: heroes.length,
       heroes,
       tactics: a.tactics || [],
-      equips: a.equips || []
+      equips
     });
   }
+  console.log('api-skipped-empty:', skippedEmpty, '| api-skipped-low:', skippedLow);
 
   // 合并并按 ordersn 去重(浏览器数据在前, 优先)
   const seenSn = new Set();
