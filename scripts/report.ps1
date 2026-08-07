@@ -18,7 +18,7 @@ powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\analyze-accounts.ps1" -D
 Write-Host '== 2/3 逐队落地检查 =='
 powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\check-teams.ps1" -DataFile $DataFile 2>&1 | Out-File (Join-Path $tmpDir 'checkteams.txt') -Encoding utf8
 Write-Host '== 3/3 各号最佳5队规划 =='
-powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\plan5-v2.ps1" -DataFile $DataFile -All 2>&1 | Out-File (Join-Path $tmpDir 'plan5.txt') -Encoding utf8
+node "$PSScriptRoot\plan5-node.js" $DataFile 2>&1 | Out-File (Join-Path $tmpDir 'plan5.txt') -Encoding utf8
 
 # 汇总生成交付报告
 $sb = @()
