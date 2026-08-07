@@ -1,5 +1,5 @@
 // ============================================================
-// api-collect.js — 藏宝阁 API 直采(v3: desc初筛 + 详情重试 + 断点续采)
+// api-collect.js — 藏宝阁 API 直采(v4: 全量慢速采集 + 登录停下提醒)
 // 原理:
 //   列表: POST /cgi-bin/recommend.py?act=recommd_by_role (page 1..N, count=15)
 //         → result[] 含 game_ordersn/server_name/price/desc_sumup_short
@@ -9,19 +9,22 @@
 //   详情: POST /cgi/api/get_equip_detail (serverid=1&ordersn=xxx)
 //         → equip.equip_desc(JSON字符串) 内含 card[](武将) skill[](战法) gear[](宝物)
 //         ⚠️ quality 字段才是真实星级(quality===5 五星, quality=4 四星)
-// 优化(v3):
-//   - 列表 desc 初筛: 五星<85 或 宝<12 的号跳过详情(省 80% 请求)
-//   - 详情批量 BATCH=6 + 失败自动重试 2 次(之前 104 个空号多为偶发失败)
-//   - 断点续采: 已保存的 OUT 里的 ordersn 自动跳过
+// 设计(v4, 用户确认方向: 全量 + 正确优先 + 登录停下提醒):
+//   - 默认全量采集: 列表里所有 五星>=85 且 宝>=12 的号都采详情(不跳过)
+//   - 慢速串行: 详情每号间隔 3-4 秒, 列表翻页 800ms → 不会触发账号级限流
+//   - 登录/验证失效: 停下打印提醒, 等用户完成手机验证后按回车继续
+//   - 连续失败 >=3: 自动长退避 60-120 秒(疑似限流)
+//   - 断点续采: 已成功保存的号自动跳过(中断后可继续)
 // 用法:
 //   node scripts/api-collect.js [OUT.json] [priceMin] [priceMax] [browser-detail.json] [topN]
-//     browser-detail.json: 可选, 传了则只采「浏览器没有的号」(补漏), 省时+防限流
-//     topN: 可选数字, 只采 desc 五星数最高的前 N 个号(精选模式, 防限流)
-//   前置: .cbg-profile 已登录且完成手机验证(浏览器打开过列表页即可)
+//     browser-detail.json: 可选, 传了则只采「浏览器没有的号」(补漏模式)
+//     topN: 可选数字, 只采 desc 五星数最高的前 N 个号(精选模式)
+//   前置: 首次需在打开的浏览器窗口登录并完成手机验证
 // ============================================================
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const readline = require('readline');
 
 const ROOT = path.resolve(__dirname, '..');
 const PROFILE = path.join(ROOT, '.cbg-profile');
@@ -35,6 +38,20 @@ const SERVERIDS = '44748,44749,44750,44751,44752,44753,44754,44755,44761,44762,4
 const LIST_URL = `https://stzb.cbg.163.com/cgi/mweb/pl?search_type=role&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=${SERVERIDS}&price_min=${PRICE_MIN}&price_max=${PRICE_MAX}&five_star_hero_count=85&duanzao_gear_cnt=12`;
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// 等待用户按回车(用于登录/验证时停下等用户处理)
+function waitForEnter(prompt) {
+  return new Promise(resolve => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(`\n${prompt}\n完成后按回车继续 (或 Ctrl+C 退出): `, () => { rl.close(); resolve(); });
+  });
+}
+
+// 判断接口返回是否需要登录/验证
+function needLogin(msg) {
+  const s = String(msg || '');
+  return s.includes('更新登陆状态') || s.includes('需要验证手机') || s.includes('登录');
+}
 
 // 从 desc_sumup_short 解析 五星数/宝物数, 返回 null 表示解析失败
 function parseDesc(sumup) {
@@ -75,7 +92,7 @@ async function fetchDetail(page, c) {
   const equip = res.equip || {};
   let desc = {};
   try { desc = JSON.parse(equip.equip_desc || '{}'); } catch (e) {}
-  return { ordersn: c.ordersn, server_name: c.server_name, price: c.price, sumup: c.sumup, status: equip.status_desc || '', desc };
+  return { ordersn: c.ordersn, server_name: c.server_name, price: c.price, sumup: c.sumup, status: equip.status_desc || '', msg: res.msg || '', desc };
 }
 
 async function main() {
@@ -103,17 +120,18 @@ async function main() {
   let cards = [];
   for (let attempt = 1; attempt <= 3 && cards.length === 0; attempt++) {
     if (attempt > 1) { console.log('list retry', attempt, '...'); await sleep(3000 * attempt); }
-    cards = await page.evaluate(([sid, pmin, pmax]) => {
+    const listResult = await page.evaluate(([sid, pmin, pmax]) => {
       return (async () => {
-        const out = [];
+        const out = { cards: [], msg: '' };
         for (let p = 1; p <= 20; p++) {
           const body = `search_type=role&count=15&view_loc=search_cond&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=${encodeURIComponent(sid)}&price_min=${pmin}&price_max=${pmax}&five_star_hero_count=85&duanzao_gear_cnt=12&order_by=&page=${p}&exter=direct`;
           const res = await fetch('/cgi-bin/recommend.py?client_type=h5&act=recommd_by_role', {
             method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body, credentials: 'include'
           });
           const j = await res.json();
+          if (j.msg && !out.msg) out.msg = j.msg;
           const arr = j.result || [];
-          for (const c of arr) out.push({ ordersn: c.game_ordersn, server_name: c.server_name, price: c.price, sumup: c.desc_sumup_short || '' });
+          for (const c of arr) out.cards.push({ ordersn: c.game_ordersn, server_name: c.server_name, price: c.price, sumup: c.desc_sumup_short || '' });
           const totalPages = j.pager ? j.pager.total_pages : 0;
           if (p >= totalPages || totalPages === 0) break;
           await new Promise(r => setTimeout(r, 800));   // 翻页间隔 800ms 防限流
@@ -121,6 +139,16 @@ async function main() {
         return out;
       })();
     }, [SERVERIDS, PRICE_MIN, PRICE_MAX]);
+    cards = listResult.cards || [];
+    // 登录/验证失效 → 停下等用户处理
+    if (cards.length === 0 && needLogin(listResult.msg)) {
+      await waitForEnter(`⚠️ 需要登录/验证手机 (${listResult.msg})\n请在打开的浏览器窗口中完成登录或手机验证`);
+      // 重新加载页面刷新会话
+      await page.goto(LIST_URL, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+      await sleep(3000);
+      attempt = 0;   // 重置重试计数, 用户完成后继续
+      continue;
+    }
   }
   console.log('list:', cards.length, 'accounts');
 
@@ -157,10 +185,11 @@ async function main() {
   }
   console.log(`filter: need-fetch ${todo.length} | browser-skip ${brSkip} | desc-skip ${skip} | resumed ${resumed}`);
 
-  // ---- 2. 详情(慢速单采 + 限流长退避, 防止账号级风控) ----
+  // ---- 2. 详情(慢速单采 + 限流长退避 + 登录停下提醒) ----
   // 教训: 批量并发(>3) 或 密集请求 会触发藏宝阁账号级限流(eb-re410),
   //       一旦触发, 列表+详情接口同时挂掉且持续 15 分钟+。
   //       本版改为: 串行单采, 每号间隔 3-4 秒, 失败指数退避(5s/15s/30s/60s)。
+  //       登录/验证失效时停下等用户处理。
   console.log('== 2/2 fetch detail (serial, 3s interval, long backoff) ==');
   const results = [...done.values()];
   let failCount = 0;
@@ -172,6 +201,14 @@ async function main() {
     for (let attempt = 0; attempt <= 4 && !ok; attempt++) {
       if (attempt > 0) await sleep(5000 * Math.pow(2, attempt - 1));
       const d = await fetchDetail(page, c);
+      // 登录/验证失效 → 停下等用户
+      if (needLogin(d.msg)) {
+        await waitForEnter(`⚠️ 需要登录/验证手机 (${d.msg})\n请在打开的浏览器窗口中完成登录或手机验证`);
+        await page.goto(LIST_URL, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+        await sleep(3000);
+        attempt = -1;   // 重置重试, 用户完成后继续
+        continue;
+      }
       if (d.desc && (d.desc.card || []).length) {
         results.push(buildResult(d));
         ok = true;

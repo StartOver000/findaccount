@@ -1,14 +1,18 @@
 ﻿# ============================================================
-# find-all.ps1 — 一键找号全流程(API直采主链路, 几分钟)
+# find-all.ps1 — 一键找号全流程(API直采主链路, 全量+慢速防限流)
 # 流程:
-#   1. api-collect.js    API直采列表+详情(desc初筛, 断点续采, 浏览器补漏)
+#   1. api-collect.js    API直采列表+详情(全量, 慢速3-4秒/号, 登录失效会停下提醒)
 #   2. merge-api.js      合并(quality=5过滤+静态表+hero_id特判)
 #   3. report.ps1        分析排名+逐队落地+5队规划(node高速版) → 找号报告
+#   4. (可选) browser-verify.js 对最终推荐号浏览器复核
 # 用法:
-#   powershell -File scripts/find-all.ps1                     # 全流程(默认1500-2500)
+#   powershell -File scripts/find-all.ps1                     # 全流程(默认1500-2500全量)
 #   powershell -File scripts/find-all.ps1 -SkipCollect        # 跳过采集(用已有API数据)
-#   powershell -File scripts/find-all.ps1 -PriceMin 150000 -PriceMax 200000 -Customer 自用
-#   powershell -File scripts/find-all.ps1 -SkipCollect        # 复用已有数据仅重分析
+#   powershell -File scripts/find-all.ps1 -PriceMin 150000 -PriceMax 200000 -Customer 客户名
+#   powershell -File scripts/find-all.ps1 -BrowserFile xxx    # 补漏模式(只采浏览器漏的)
+# 注意:
+#   - 登录/验证失效时 api-collect 会停下等你在浏览器窗口处理, 完成后按回车继续
+#   - 全量采集约 10-15 分钟(140号×3-4秒), 慢速防限流, 不要中途并发其他请求
 # ============================================================
 param(
     [switch]$SkipCollect = $false,          # 跳过API采集(复用 data/accounts-api.json)
