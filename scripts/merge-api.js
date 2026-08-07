@@ -80,9 +80,11 @@ function main() {
       name: h.name,
       marks: [campOf(h, nameCamp) + (h.awake ? '极' : '') + (h.season === 'SP' ? 'SP' : (h.season || 'N'))]
     }));
-    const yuan = String((a.list.price || 0) / 100).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // price: list.price 用无逗号整数(与浏览器采集一致), overview.price 用带逗号显示格式
+    const yuanInt = String(Math.round((a.list.price || 0) / 100));
+    const yuan = yuanInt.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     added.push({
-      list: { server: a.list.server, price: yuan, ordersn: a.list.ordersn, sumup: a.list.sumup },
+      list: { server: a.list.server, price: yuanInt, ordersn: a.list.ordersn, sumup: a.list.sumup },
       overview: { url: a.overview.url, server: a.list.server, price: yuan, fullRed: 0, status: '' },
       heroCount: heroes.length,
       heroes,
@@ -91,9 +93,19 @@ function main() {
     });
   }
 
-  const merged = browser.concat(added);
+  // 合并并按 ordersn(overview.url 商品ID)去重, 浏览器数据优先(在前面)
+  const seenSn = new Set();
+  const merged = [];
+  for (const r of browser.concat(added)) {
+    const u = r.overview && r.overview.url ? r.overview.url : '';
+    const sn = u.split('/').pop().split('?')[0];
+    if (!sn || sn.length < 15) { merged.push(r); continue; }
+    if (seenSn.has(sn)) continue;
+    seenSn.add(sn);
+    merged.push(r);
+  }
   fs.writeFileSync(OUT, JSON.stringify(merged, null, 1), 'utf-8');
-  console.log('浏览器:', browser.length, '条 | API补充:', added.length, '条 | 合并:', merged.length, '条');
+  console.log('浏览器:', browser.length, '条 | API补充:', added.length, '条 | 去重后:', merged.length, '条');
   console.log('已保存:', OUT);
 }
 
