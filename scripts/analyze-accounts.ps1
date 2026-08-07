@@ -229,7 +229,7 @@ foreach ($acc in $accounts) {
 Write-Host ''
 Write-Host '===== 账号评估排名(按武将分降序) ====='
 Write-Host ("{0,-18} {1,6} {2,4} {3,4} {4,4} {5,4} {6,4} {7,4} | {8}" -f '账号', '价格', '分', 'T0+', 'T0', '满红', '核觉醒', '战法/宝', '队伍')
-foreach ($r in ($report | Sort-Object Price, Score -Descending)) {
+foreach ($r in ($report | Sort-Object @{ Expression = 'Score'; Descending = $true }, Price)) {
     Write-Host ("{0,-18} {1,6} {2,4} {3,4} {4,4} {5,4} {6,4} {7,3}/{8,3} | {9}" -f $r.Label, $r.Price, $r.Score, $r.T0p, $r.T0, $r.FullRedAll, $r.FullRedCore, $r.TacticHit, $r.EquipHit, $r.TopTeams)
 }
 
@@ -241,7 +241,7 @@ $sb += '> 武将70% + 战法15% + 宝物10% + 红度5% 框架; 满红=概览满�
 $sb += ''
 $sb += '| 账号 | 价格 | 武将分 | T0+ | T0 | 满红 | 核心觉醒 | 战法命中 | 宝物命中 | 代表队伍 |'
 $sb += '|---|---|---|---|---|---|---|---|---|---|'
-foreach ($r in ($report | Sort-Object Price, Score -Descending)) {
+foreach ($r in ($report | Sort-Object @{ Expression = 'Score'; Descending = $true }, Price)) {
     $sb += "| $($r.Label) | $($r.Price) | $($r.Score) | $($r.T0p) | $($r.T0) | $($r.FullRedAll) | $($r.FullRedCore) | $($r.TacticHit)/$($r.TacticTotal) | $($r.EquipHit)/$($r.EquipTotal) | $($r.TopTeams) |"
 }
 $sb += ''
