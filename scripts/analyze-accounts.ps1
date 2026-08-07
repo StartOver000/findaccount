@@ -143,6 +143,8 @@ foreach ($acc in $accounts) {
     $listSrv = ''
     if ($acc.list -and $acc.list.server) { $listSrv = $acc.list.server } else { $listSrv = $ov.server }
     $label = "$listSrv ¥$($ov.price)"
+    # 商品链接(去掉追踪参数)
+    $cleanUrl = if ($ov.url) { ($ov.url -split '\?')[0] } else { '' }
 
     # 武将名字 → marks 列表(用于版本/阵营校验)
     $heroMarks = @{}
@@ -209,6 +211,7 @@ foreach ($acc in $accounts) {
 
     $report += [pscustomobject]@{
         Label = $label
+        Url = $cleanUrl
         Price = $ov.price
         Score = $score
         T0p = $t0p
@@ -239,10 +242,10 @@ $sb += '# 账号评估报告 - 20260807'
 $sb += ''
 $sb += '> 武将70% + 战法15% + 宝物10% + 红度5% 框架; 满红=概览满红数, 核心觉醒=觉醒核心武将; 吃红度队伍(三典藏/大张鲁/沙魏马/胡芳网红/父子队)降权'
 $sb += ''
-$sb += '| 账号 | 价格 | 武将分 | T0+ | T0 | 满红 | 核心觉醒 | 战法命中 | 宝物命中 | 代表队伍 |'
-$sb += '|---|---|---|---|---|---|---|---|---|---|'
+$sb += '| 账号 | 价格 | 武将分 | T0+ | T0 | 满红 | 核心觉醒 | 战法命中 | 宝物命中 | 代表队伍 | 链接 |'
+$sb += '|---|---|---|---|---|---|---|---|---|---|---|'
 foreach ($r in ($report | Sort-Object @{ Expression = 'Score'; Descending = $true }, Price)) {
-    $sb += "| $($r.Label) | $($r.Price) | $($r.Score) | $($r.T0p) | $($r.T0) | $($r.FullRedAll) | $($r.FullRedCore) | $($r.TacticHit)/$($r.TacticTotal) | $($r.EquipHit)/$($r.EquipTotal) | $($r.TopTeams) |"
+    $sb += "| $($r.Label) | $($r.Price) | $($r.Score) | $($r.T0p) | $($r.T0) | $($r.FullRedAll) | $($r.FullRedCore) | $($r.TacticHit)/$($r.TacticTotal) | $($r.EquipHit)/$($r.EquipTotal) | $($r.TopTeams) | [$($r.Label)]($($r.Url)) |"
 }
 $sb += ''
 $sb += '## 核心觉醒武将明细'
