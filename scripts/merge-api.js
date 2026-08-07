@@ -1,23 +1,28 @@
 // ============================================================
-// merge-api.js — 合并浏览器采集 + API 采集, 生成最终 accounts-final.json
-// 浏览器数据(marks 可靠, 详情页 DOM 读的阵营/版本)为主
-// API 数据(ordersn 唯一, 全)补充浏览器漏采的号(同server同价不同号)
-// 补充号 marks 用: name→阵营 多数投票表(浏览器全量) + hero_id 特判表(版本武将)
+// merge-api.js — 合并数据生成 accounts-final.json(v2: 不再依赖浏览器数据)
+// 主数据: API直采(data/accounts-api.json, ordersn唯一, 几分钟, 实时在售)
+// 静态表: data/name-camp.json(武将→阵营, 唯一映射) + data/star5-names.json(5星白名单)
+//          + 内置 hero_id 特判表(版本武将: 关羽蜀/魏, 曹操魏/汉, 赵云SP 等)
+// 可选增强: 浏览器采集(当前批次 detail 主文件)存在时优先用其 marks(更准)并补充API漏的号
+//           注意: 只读「最大的」accounts-detail-*.json(当前批次), 旧价格段历史文件是中间产物
+//                 可能已下架, 不混入, 避免污染排名
+// 用法: node scripts/merge-api.js
 // ============================================================
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
-const BROWSER_FILE = path.join(ROOT, 'data', 'accounts-detail-1500-2500.json');
 const API_FILE = path.join(ROOT, 'data', 'accounts-api.json');
 const OUT = path.join(ROOT, 'data', 'accounts-final.json');
+const NAMECAMP_FILE = path.join(ROOT, 'data', 'name-camp.json');
+const STAR5_FILE = path.join(ROOT, 'data', 'star5-names.json');
 
 // 版本武将 hero_id → 阵营(浏览器交叉 + 游戏常识确认)
 const HERO_SPECIAL = {
   100065: '蜀', 100451: '蜀', 100026: '魏',        // 关羽: 蜀/蜀/魏
   100042: '魏', 100023: '魏', 100804: '汉',        // 曹操: 魏/魏/汉
-  102001: 'SP',                                     // SP赵云(season=SP 也标注)
+  102001: 'SP',                                     // SP赵云
   100021: '蜀', 100131: '蜀',                        // 普通赵云
-  100024: '魏', 100794: '汉',                        // 荀彧: 魏/汉(XP)
+  100024: '魏', 100794: '汉',                        // 荀彧: 魏/汉
   100009: '群', 100480: '汉',                        // 董卓: 群/汉(S2)
   100033: '吴', 100043: '汉', 100805: '汉',         // 孙坚: 吴/汉/汉
   100016: '蜀', 100803: '汉',                        // 刘备: 蜀/汉
@@ -26,61 +31,40 @@ const HERO_SPECIAL = {
   100472: '魏'                                       // 司马懿: 魏
 };
 
-// 4星/噪声武将黑名单(API card 含4星, 浏览器采集只取5星; 4星混入会导致铁王八等队伍误判)
-const BLACK4 = ['侍卫', '麦子', '陶渊明', '朱士行', '张恭', '九色鹿', '长风破浪', '新春侍女', '率土十载', '不负时代', '百家纵横', '彻里吉', '张宝', '张梁', '管亥', '潘凤', '纪灵', '波才', '孙乾', '糜竺', '简雍', '蒋干', '张松', '刘璋', '黄祖', '王匡', '韩馥', '孔融', '张邈', '刘岱', '乔瑁', '袁遗', '公孙瓒_4', '田楷', '刘虞', '公孙度', '张英', '严畯', '阚泽', '薛综', '是仪', '骆统', '全琮', '吕范', '朱治', '孙静', '程普_4', '黄盖_4', '韩当', '祖茂', '蒋钦', '周泰_4', '陈武', '董袭', '徐盛_4', '潘璋', '凌统_4', '丁奉_4'];
-
-function campOf(h, nameCamp) {
-  const sp = HERO_SPECIAL[h.hero_id];
-  if (sp) return sp;
-  return nameCamp[h.name] || '';
-}
-
 function main() {
-  const browser = JSON.parse(fs.readFileSync(BROWSER_FILE, 'utf-8'));
   const api = JSON.parse(fs.readFileSync(API_FILE, 'utf-8'));
+  const nameCamp = JSON.parse(fs.readFileSync(NAMECAMP_FILE, 'utf-8'));
+  const star5 = new Set(JSON.parse(fs.readFileSync(STAR5_FILE, 'utf-8')));
 
-  // 5星武将白名单: 浏览器采集(详情页5星筛选, 可靠)的武将名 + 榜单队伍所需武将名
-  const star5 = new Set();
-  for (const b of browser) for (const h of b.heroes || []) star5.add(h.name);
-  const rankText = fs.readFileSync(path.join(ROOT, 'docs', '队伍强度排行榜.md'), 'utf-8');
-  for (const m of rankText.matchAll(/^\|\s*([^|]+?)\s*\|/gm)) {
-    const n = m[1].trim();
-    if (n && n !== '武将' && n !== '---' && !/^\d+$/.test(n)) star5.add(n);
+  // 可选: 浏览器采集(增强用, 缺失不影响) — 只读最大的 detail 文件(当前批次)
+  let browser = [];
+  const dataDir = path.join(ROOT, 'data');
+  const detailFiles = fs.readdirSync(dataDir).filter(f => /^accounts-detail-.*\.json$/.test(f));
+  if (detailFiles.length) {
+    detailFiles.sort((a, b) => fs.statSync(path.join(dataDir, b)).size - fs.statSync(path.join(dataDir, a)).size);
+    const mainFile = path.join(dataDir, detailFiles[0]);
+    try { browser = JSON.parse(fs.readFileSync(mainFile, 'utf-8')); } catch (e) {}
+    console.log('browser-enhance:', detailFiles[0], '(', browser.length, ')');
   }
-
-  // name → 阵营 多数投票(浏览器全量, 唯一映射才用)
-  const vote = {};
-  for (const b of browser) {
-    for (const h of b.heroes || []) {
-      const mk = Array.isArray(h.marks) ? h.marks.join('/') : String(h.marks || '');
-      const camp = mk.match(/^(魏|蜀|吴|群|汉|SP)/);
-      if (!camp) continue;
-      if (!vote[h.name]) vote[h.name] = {};
-      vote[h.name][camp[1]] = (vote[h.name][camp[1]] || 0) + 1;
-    }
-  }
-  const nameCamp = {};
-  for (const n of Object.keys(vote)) {
-    const camps = Object.entries(vote[n]).sort((a, b) => b[1] - a[1]);
-    nameCamp[n] = camps[0][0]; // 多数阵营
-  }
-
-  // 浏览器 ordersn 集合
   const browserSns = new Set(browser.map(b => {
     const u = b.overview && b.overview.url ? b.overview.url : '';
     return u.split('/').pop().split('?')[0];
   }).filter(x => x && x.length > 10));
 
-  // API 补: 浏览器没有的 ordersn
+  function campOf(h) {
+    const sp = HERO_SPECIAL[h.hero_id];
+    if (sp) return sp;
+    return nameCamp[h.name] || '';
+  }
+
+  // API 生成(浏览器没有的号才生成; 浏览器有则优先用浏览器marks)
   const added = [];
   for (const a of api) {
     if (browserSns.has(a.list.ordersn)) continue;
-    // 只保留5星武将(4星/噪声会致铁王八等队伍误判), 用 star5 白名单过滤
     const heroes = (a.heroes || []).filter(h => star5.has(h.name)).map(h => ({
       name: h.name,
-      marks: [campOf(h, nameCamp) + (h.awake ? '极' : '') + (h.season === 'SP' ? 'SP' : (h.season || 'N'))]
+      marks: [campOf(h) + (h.awake ? '极' : '') + (h.season === 'SP' ? 'SP' : (h.season || 'N'))]
     }));
-    // price: list.price 用无逗号整数(与浏览器采集一致), overview.price 用带逗号显示格式
     const yuanInt = String(Math.round((a.list.price || 0) / 100));
     const yuan = yuanInt.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     added.push({
@@ -93,7 +77,7 @@ function main() {
     });
   }
 
-  // 合并并按 ordersn(overview.url 商品ID)去重, 浏览器数据优先(在前面)
+  // 合并并按 ordersn 去重(浏览器数据在前, 优先)
   const seenSn = new Set();
   const merged = [];
   for (const r of browser.concat(added)) {
@@ -104,9 +88,10 @@ function main() {
     seenSn.add(sn);
     merged.push(r);
   }
+
   fs.writeFileSync(OUT, JSON.stringify(merged, null, 1), 'utf-8');
-  console.log('浏览器:', browser.length, '条 | API补充:', added.length, '条 | 去重后:', merged.length, '条');
-  console.log('已保存:', OUT);
+  console.log('API:', api.length, '| browser:', browser.length, '| api-added:', added.length, '| merged:', merged.length);
+  console.log('saved:', OUT);
 }
 
 main();
