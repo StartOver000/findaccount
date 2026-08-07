@@ -178,12 +178,18 @@ async function collectCards(page) {
 }
 
 async function scrollLoadAll(page) {
-  let prev = -1;
-  for (let i = 0; i < 40; i++) {
-    await page.mouse.wheel(0, 900);
-    await sleep(350);
+  // 藏宝阁列表是"滚到页面最底部→加载下一页"机制, 必须滚到底+等加载完成, 不能用小步滚动
+  let prev = -1, stable = 0;
+  for (let i = 0; i < 80; i++) {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await sleep(900);   // 等异步加载下一页
     const n = await page.evaluate(() => document.querySelectorAll('.product-item, .extend-product-item').length);
-    if (n === prev && i > 3) break;
+    if (n === prev) {
+      stable++;
+      if (stable >= 4) break;   // 连续4次卡片数不变才认为到底
+    } else {
+      stable = 0;
+    }
     prev = n;
   }
   return prev;
@@ -216,21 +222,36 @@ async function main() {
     return cards;
   }
 
-  let rounds = 0;
-  while (rounds < 60) {
-    console.log(`\n===== 第 ${rounds + 1} 轮: 打开列表页 =====`);
-    const cards = await waitForCards();
-    if (cards.length === 0) { console.error('列表持续为空(可能未登录), 停止'); break; }
-    console.log('列表卡片数:', cards.length, '已完成:', doneKeys.size);
+  // ===== 打开列表页并滚动加载全部(只加载一次) =====
+  console.log('\n===== 打开列表页并加载全部 =====');
+  let cards = await waitForCards();
+  if (cards.length === 0) { console.error('列表持续为空(可能未登录), 停止'); await context.close(); return; }
+  console.log('列表卡片数:', cards.length, '已完成:', doneKeys.size);
 
-    // 找第一个未处理的卡片
+  // 详情页 goBack 返回后列表 DOM 保留(已验证284张不丢), 只在丢失时才重新加载
+  async function ensureList() {
+    const still = await page.evaluate(() => document.querySelectorAll('.product-item, .extend-product-item').length);
+    if (still > 0) { cards = await collectCards(page); return true; }
+    console.log('  列表丢失, 重新加载...');
+    cards = await waitForCards();
+    return cards.length > 0;
+  }
+
+  let rounds = 0;
+  while (rounds < 500) {
     const pending = cards.find(c => !doneKeys.has(c.server + '-' + c.price));
     if (!pending) { console.log('全部处理完成'); break; }
-
-    console.log(`处理: ${pending.server} ¥${pending.price} ...`);
+    const idx = cards.indexOf(pending);
+    console.log(`[${doneKeys.size}/${cards.length}] 处理: ${pending.server} ¥${pending.price} ...`);
     try {
+      // 滚动到目标卡(返回后列表位置会变, 每次用 scrollIntoView 定位)
+      await page.evaluate((i) => {
+        const el = document.querySelectorAll('.product-item, .extend-product-item')[i];
+        if (el) el.scrollIntoView({ block: 'center' });
+      }, idx);
+      await sleep(600);
       // 点击卡片: 真实鼠标点击(evaluate .click() 对 CBG 无效, 必须用 locator.click)
-      const cardLoc = page.locator('.product-item, .extend-product-item').nth(pending.idx);
+      const cardLoc = page.locator('.product-item, .extend-product-item').nth(idx);
       await cardLoc.click({ timeout: 8000 }).catch(() => {});
       await randomSleep(2000, 4000);
       // 检测验证码(风控)
@@ -282,9 +303,16 @@ async function main() {
       doneKeys.add(sv + '-' + pr);
       doneKeys.add(pending.server + '-' + pending.price);
       console.log(`  ✓ ${sv} ¥${overview.price} ${overview.stars}★ ${overview.sTactics}S ${overview.rareEquips}宝 满红${overview.fullRed} 限${overview.limited} 锻${overview.forged} | 武将${heroes.cards ? heroes.cards.length : 0} 战法${tactics.length} 宝${equips.length}`);
+      // 返回列表(复用当前列表 DOM, 不用重新 goto+滚动)
+      await page.goBack().catch(() => {});
+      await sleep(1800);
+      if (!(await ensureList())) break;
     } catch (e) {
       console.error('  ERROR:', e.message);
       doneKeys.add(pending.server + '-' + pending.price);
+      await page.goBack().catch(() => {});
+      await sleep(1800);
+      if (!(await ensureList())) break;
     }
     rounds++;
   }
