@@ -196,8 +196,15 @@ function main() {
       cand.push({ Team: team.Team, Tier: team.Tier, Heroes: [...team.Heroes], Score: tierScore + land, TMiss: st.TMiss, EMiss: st.EMiss });
     }
     const res = bestCombination(cand, 5);
+    // 统计: 完整(战法宝全) / 只缺宝(战法全)
+    let fullCount = 0, onlyGearCount = 0;
+    for (const c of cand) {
+      if (c.TMiss === '' && c.EMiss === '') fullCount++;
+      else if (c.TMiss === '') onlyGearCount++;
+    }
     console.log(`\n########## ${listSrv} ¥${price} ##########`);
     console.log(`URL: ${String(acc.overview.url).replace(/\?.*$/, '')}`);
+    console.log(`落地统计: 完整 ${fullCount} | 只缺宝 ${onlyGearCount} | 可组 ${cand.length}`);
     if (res) {
       console.log(`可组榜单队伍: ${cand.length} 支 | 枚举组合: ${res.combos} 个 | 最优评分: ${res.bestScore}`);
       let i = 0;
