@@ -107,7 +107,10 @@ function teamStatus(team, heroMarks, accTac, accEq) {
 function main() {
   const teams = initTeams();
   const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+  // 输出文件(避免 PowerShell 管道 GBK 乱码)
+  const OUT_FILE = process.argv[5] || path.join(ROOT, 'data', 'tmp', 'land-stats.json');
   const seen = new Set();
+  const results = [];
   for (const acc of data) {
     if (!acc.overview) continue;
     const k = `${acc.list.server}-${acc.overview.price}`;
@@ -133,7 +136,11 @@ function main() {
       else if (st.tMiss.length === 0) onlyGear.push(o);
       else missTac.push(o);
     }
-    console.log(JSON.stringify({ server: acc.list.server, price: acc.overview.price, full, onlyGear, missTacCount: missTac.length }));
+    results.push({ server: acc.list.server, price: acc.overview.price, url: String(acc.overview.url).replace(/\?.*$/, ''), full, onlyGear, missTacCount: missTac.length });
   }
+  // 写 JSON 文件(UTF-8 无 BOM)
+  fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
+  fs.writeFileSync(OUT_FILE, JSON.stringify(results, null, 1), 'utf-8');
+  console.log('saved:', OUT_FILE, '(', results.length, 'accounts )');
 }
 main();

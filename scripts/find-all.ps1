@@ -19,14 +19,15 @@ param(
     [string]$PriceMin = '150000',           # 价格下限(分)
     [string]$PriceMax = '250000',           # 价格上限(分)
     [string]$Customer = '自用',              # 客户名(报告文件名)
-    [string]$BrowserFile = ''               # 浏览器detail文件(存在则只补浏览器漏的号)
+    [string]$BrowserFile = '',              # 浏览器detail文件(存在则只补浏览器漏的号)
+    [switch]$SkipReport = $false            # 跳过报告生成(仅采集+合并)
 )
 $root = Split-Path $PSScriptRoot -Parent
 $browserArg = ''
 if ($BrowserFile) { $browserArg = " `"$BrowserFile`"" }
 elseif (Test-Path (Join-Path $root 'data\accounts-detail-1500-2500.json')) { $browserArg = " `"$(Join-Path $root 'data\accounts-detail-1500-2500.json')`"" }
 
-Write-Host '===== 1/3 API直采 ====='
+Write-Host '===== 1/4 API直采 ====='
 if ($SkipCollect) {
     Write-Host '  (跳过采集, 复用已有 data/accounts-api.json)'
 } else {
@@ -34,12 +35,17 @@ if ($SkipCollect) {
     if ($LASTEXITCODE -ne 0) { Write-Error 'API采集失败'; exit 1 }
 }
 
-Write-Host '===== 2/3 数据合并 ====='
+Write-Host '===== 2/4 数据合并 ====='
 node "$PSScriptRoot\merge-api.js"
 if ($LASTEXITCODE -ne 0) { Write-Error '合并失败'; exit 1 }
 
-Write-Host '===== 3/3 分析+报告 ====='
+if ($SkipReport) { Write-Host '跳过报告生成'; exit 0 }
+
+Write-Host '===== 3/4 分析+报告 ====='
 powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\report.ps1" -Customer $Customer -DataFile (Join-Path $root 'data\accounts-final.json')
 
+Write-Host '===== 4/4 自动生成最终购买建议 ====='
+node "$PSScriptRoot\recommend.js" (Join-Path $root 'data\accounts-final.json')
+
 Write-Host ''
-Write-Host "完成: docs\找号报告-$Customer-$(Get-Date -Format 'yyyyMMdd').md"
+Write-Host "完成: docs\找号报告-$Customer-$(Get-Date -Format 'yyyyMMdd').md + 最终购买建议-$(Get-Date -Format 'yyyyMMdd')-自动.md"
