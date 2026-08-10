@@ -12,10 +12,12 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const core = require('./plan5-core.js');
 const ROOT = path.resolve(__dirname, '..');
 const DATA_FILE = process.argv[2] || path.join(ROOT, 'data', 'accounts-final.json');
 const PRICE_MIN = parseInt(process.argv[3] || '1500', 10);
 const PRICE_MAX = parseInt(process.argv[4] || '2000', 10);
+const teams = core.initTeams();
 
 // ---- 1. 跑 land-stats 输出 JSON ----
 const STATS_FILE = path.join(ROOT, 'data', 'tmp', 'land-stats.json');
@@ -29,8 +31,11 @@ const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
 const byKey = {};
 for (const acc of data) {
   if (!acc.overview) continue;
-  const k = `${acc.list.server}-${acc.overview.price}`;
-  if (!byKey[k]) byKey[k] = acc;
+  // 兼容价格字符串(1,900)与数字(1900)两种 key
+  const k1 = `${acc.list.server}-${acc.overview.price}`;
+  const k2 = `${acc.list.server}-${String(acc.overview.price).replace(/,/g, '')}`;
+  if (!byKey[k1]) byKey[k1] = acc;
+  if (!byKey[k2]) byKey[k2] = acc;
 }
 // 读 analyze 分数
 const analyzeFile = path.join(ROOT, 'data', 'tmp', 'analyze-latest.txt');
@@ -96,6 +101,27 @@ for (const r of rows.slice(0, 20)) {
   sb.push(`- 武将 ${r.heroCount} / 战法 ${r.tacCount} / 宝 ${r.gearCount}`);
   if (r.fullTeams) sb.push(`- ✅ 完整队: ${r.fullTeams}`);
   if (r.onlyGearTeams) sb.push(`- 🟡 只缺宝: ${r.onlyGearTeams}`);
+  // ---- 5 队规划表(每队标注缺口) ----
+  const acc = byKey[`${r.server}-${r.price}`] || byKey[`${r.server}-${String(r.price)}`];
+  if (acc) {
+    const plan = core.planAccount(acc, teams);
+    if (plan && plan.res && plan.res.best && plan.res.best.length) {
+      sb.push('');
+      sb.push('**5 队规划**(最优组合, 武将不重复):');
+      sb.push('');
+      sb.push('| # | 队伍(档位) | 武将 | 落地 | 缺战法 | 缺宝物 |');
+      sb.push('|---|-----------|------|------|--------|--------|');
+      plan.res.best.forEach((b, i) => {
+        const land = (b.TMiss === '' && b.EMiss === '') ? '✅完整'
+          : (b.TMiss === '') ? '🟡只缺宝'
+          : (b.EMiss === '') ? '🔴缺战法'
+          : '🔴缺战法+宝';
+        const tMiss = b.TMiss ? b.TMiss.replace(/\//g, '、') : '—';
+        const eMiss = b.EMiss ? b.EMiss.replace(/\//g, '、') : (b.TMiss === '' ? '齐' : '—');
+        sb.push(`| ${i + 1} | ${b.Team}(${b.Tier}) | ${b.Heroes.join('、')} | ${land} | ${tMiss} | ${eMiss} |`);
+      });
+    }
+  }
   sb.push('');
 }
 sb.push('---');
