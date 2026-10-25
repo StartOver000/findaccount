@@ -177,7 +177,13 @@ function main() {
   const accounts = readJson(dataAbs);
   if (!Array.isArray(accounts)) throw new Error('账号数据必须是 JSON 数组');
   if (!accounts.length) throw new Error('账号数据为空');
-  const snapshotAt = fs.statSync(dataAbs).mtime;
+  // 快照时间优先用每条账号的采集时间（provenance.capturedAt），文件 mtime 仅兜底
+  const capturedMs = accounts
+    .map(a => (a && a.capturedAt ? Date.parse(a.capturedAt) : NaN))
+    .filter(ms => Number.isFinite(ms));
+  const captured = capturedMs.length;
+  const captureMin = captured ? new Date(Math.min(...capturedMs)) : null;
+  const snapshotAt = captured ? new Date(Math.max(...capturedMs)) : fs.statSync(dataAbs).mtime;
   const staleDays = dayDiff(new Date(), snapshotAt);
 
   // 3) 队伍库
@@ -274,7 +280,10 @@ function main() {
   const md = [];
   md.push(`# 藏宝阁找号报告 - ${opts.customer} - ${ymdLocal(now)}`);
   md.push('');
-  md.push(`> **数据快照**: \`${path.relative(ROOT, dataAbs)}\` · ${fmtDateTime(snapshotAt)} · 距今 ${staleDays} 天 · 有效账号 **${rows.length}**${invalid ? `（跳过无效 ${invalid}）` : ''}`);
+  const captureDesc = captured
+    ? `采集 ${fmtDateTime(captureMin)} ~ ${fmtDateTime(snapshotAt)}（${captured}/${rows.length} 条带来源时间）`
+    : `文件修改 ${fmtDateTime(snapshotAt)} · 无 provenance 采集时间`;
+  md.push(`> **数据快照**: \`${path.relative(ROOT, dataAbs)}\` · ${captureDesc} · 距今 ${staleDays} 天（按最新采集时间） · 有效账号 **${rows.length}**${invalid ? `（跳过无效 ${invalid}）` : ''}`);
   md.push(`> **数据来源**: ${Object.entries(sourceCounts).map(([k, v]) => `${k} ${v}`).join(' / ')}`);
   md.push(`> **状态分布**: ${statusLine(statusCounts) || '无'}`);
   md.push(`> **队伍库**: ${teamSourceLabel} · **${teams.length} 队**（${teamTierLine(teams)}）${teamHash ? ` · 榜单 sha1 \`${teamHash}\`` : ''}`);
