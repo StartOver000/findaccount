@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 .cbg-profile/
 *.log
 data/tmp/
@@ -6,3 +6,16 @@ data/tmp/
 *.local.xlsx
 cbg_page.html
 找号问卷-自测-*.xlsx
+
+# ---- 数据体积治理（2026-10-25）----
+# 备份/旧快照不进 git（工作区文件保留）
+data/backups/
+data/*.bak.json
+# 运行元数据（data/run-meta.json 由 lib-runmeta.js 每次运行重写，属本机状态）
+data/run-meta.json
+# 实采测试样本（2026-10-25 小样本验证产物，可重新采集）
+data/accounts-api-test*.json
+# 报告脚本的默认输出路径（带日期的交付报告仍按需入库）
+docs/accounts-report.md
+docs/account-score.md
+docs/account-summary.md

@@ -1,0 +1,5418 @@
+{
+ "generatedAt": "2026-10-25T10:37:21.787Z",
+ "config": {
+  "_comment": "2026-10-25 选号策略参数（漏斗 + 落地战力排序）。改这里即可调参，勿在脚本里写死。",
+  "version": "2026-10-25",
+  "l1_pool": {
+   "priceRange": [
+    1500,
+    2500
+   ],
+   "bargainLine": {
+    "enabled": true,
+    "priceRange": [
+     200,
+     1200
+    ],
+    "fiveStarMin": 85,
+    "forgedGearMin": 12,
+    "topN": 30
+   },
+   "serverWhitelist": "docs/试师赛季白名单.md",
+   "note": "白名单必须单源；旧文档 X5533-X5672 已作废"
+  },
+  "l2_list_filter": {
+   "fiveStarMin": 85,
+   "sTacticMin": 20,
+   "forgedGearMin": 15,
+   "coreHeroHitsMin": 2,
+   "maxDetailCandidates": 80,
+   "rareEquipMin": 12,
+   "detailBudget": 30,
+   "prefilter": {
+    "weights": {
+     "intercept": -36,
+     "st": 1.3,
+     "forged": 0.3,
+     "stars": 0.03,
+     "pricePer1000": 6
+    },
+    "note": "按预测落地战力排序抓详情；只排序不淘汰（2026-10-25 回归，5折CV R²≈0.24，样本6正例）"
+   },
+   "note": "列表页 desc 只有五星/S战法/稀世宝物；锻造数(duanzao)由服务端参数控制，客户端无法复核。2026-10-25 起改为『宽门槛保召回 + 预筛分排序』：五星弱预测、S战法/锻造/价格强预测，见 reports/筛选条件策略-20261025/筛选条件分析.md"
+  },
+  "l3_scoring": {
+   "tierWeight": {
+    "T0+": 10,
+    "T0": 8,
+    "T1": 5,
+    "T2-": 2
+   },
+   "onlyGearFactor": 0.8,
+   "missTacticFactor": 0.2,
+   "versionOverrides": {
+    "司马懿": "晋"
+   },
+   "skipHeroes": [
+    "弓诸葛"
+   ],
+   "hardRules": {
+    "highTierMissingTactics": {
+     "tiers": [
+      "T0+",
+      "T0"
+     ],
+     "minMissing": 2
+    },
+    "onlyGearManyMissing": {
+     "tiers": [
+      "T0+",
+      "T0",
+      "T1"
+     ],
+     "minMissing": 3,
+     "factor": 0.3
+    },
+    "premiumOver": {
+     "price": 2000,
+     "requireFullT1plus": 1,
+     "requireT0OnlyGear": 1
+    }
+   },
+   "gate": {
+    "minFullT1plus": 2,
+    "alt": {
+     "minFullT1plus": 1,
+     "minOnlyGearT1plus": 2
+    },
+    "alt2_baobao": {
+     "minOnlyGearT1plus": 3,
+     "maxEquipMissingPerTeam": 2,
+     "minRealGrowth": 2
+    },
+    "note": "alt 为即战/均衡通道；alt2 为补宝型专用通道（原策略未定义，本次补充，见报告 §争议点）"
+   },
+   "profiles": {
+    "即战型": {
+     "fullMin": 3,
+     "fullT1plusMin": 2,
+     "onlyGearMax": 2
+    },
+    "均衡型": {
+     "fullT1plusMin": 2,
+     "onlyGearMin": 2
+    },
+    "补宝型": {
+     "fullT1plusMax": 1,
+     "onlyGearT1plusMin": 2
+    }
+   }
+  },
+  "l4_manual_check": {
+   "topN": 3,
+   "checks": [
+    "版本武将",
+    "宝物词条",
+    "上架状态/公示期",
+    "服务器与价格二次确认"
+   ]
+  }
+ },
+ "summary": {
+  "accounts": 35,
+  "gatePass": 2,
+  "baoBaoPass": 0,
+  "candidates": 2,
+  "premiumBlocked": 0,
+  "premiumExcluded": 5,
+  "simaAccounts": 0,
+  "simaExtraTeams": -22,
+  "simaRejectedFalseHits": 22
+ },
+ "rows": [
+  {
+   "ordersn": "202610181302116-1-XWPXDCLIF9AFAA",
+   "server": "X6115",
+   "price": 1688,
+   "stars": 111,
+   "sTac": 26,
+   "forged": null,
+   "heroCount": 111,
+   "full": [
+    {
+     "team": "合纵蜀骑",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    },
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "雨化田",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "腾蛇",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三贤队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "息权",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "钱步",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "胜敌/诱敌/桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄/息权",
+     "eMiss": "徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "徐庶蜀骑",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "真刚/掩日",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "沧海",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 21.2,
+   "valuePer1000": 12.56,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 20,
+   "hardDropped": 2
+  },
+  {
+   "ordersn": "202610171402116-1-C3GBZ8FWR2WJQC",
+   "server": "X6098",
+   "price": 2000,
+   "stars": 92,
+   "sTac": 25,
+   "forged": null,
+   "heroCount": 92,
+   "full": [
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "惊锐",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "聪明刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "先声/除恶/定军山",
+     "eMiss": "徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "马谡蜀骑",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "避锐/除恶",
+     "eMiss": "徐氏匕首/乌号",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "纯刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄/息权",
+     "eMiss": "徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "避其/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "利兵",
+     "eMiss": "",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    }
+   ],
+   "score": 22.4,
+   "valuePer1000": 11.2,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 20,
+   "hardDropped": 2
+  },
+  {
+   "ordersn": "202609131202116-1-IWGKVDGA3MCHDL",
+   "server": "X6004",
+   "price": 2000,
+   "stars": 129,
+   "sTac": 24,
+   "forged": null,
+   "heroCount": 129,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "仁风/别铭",
+     "contribution": 4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/游飘",
+     "contribution": 1.6
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "游飘",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "同心队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "敛众/桃园/避锐",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "定军赵",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "以诱/敛众/定军山",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "多弓队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "火烧/鼎足/当阳",
+     "eMiss": "乌号/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "周泰同心",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "桃园/避锐/敛众/除恶/戮战",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "乘胜/枭雄/狼顾",
+     "eMiss": "钜黍/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜/追击",
+     "eMiss": "别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "仁风/别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 19,
+   "valuePer1000": 9.5,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 2,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "补宝型",
+   "preHard": 17,
+   "hardDropped": 4
+  },
+  {
+   "ordersn": "202610181602116-1-PXGWRRJHCIEZPL",
+   "server": "X6116",
+   "price": 2000,
+   "stars": 98,
+   "sTac": 24,
+   "forged": null,
+   "heroCount": 98,
+   "full": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "仁风/别铭",
+     "contribution": 4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜",
+     "eMiss": "泰阿/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄/息权",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/垒实/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "仁风/别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 15.2,
+   "valuePer1000": 7.6,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 9,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202610160702116-1-GORHP7RPD0XNFC",
+   "server": "X6013",
+   "price": 1699,
+   "stars": 133,
+   "sTac": 24,
+   "forged": null,
+   "heroCount": 133,
+   "full": [
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/承影",
+     "contribution": 4
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "承影",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "飞天王八",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "鼎足",
+     "eMiss": "乌号",
+     "contribution": 1.6
+    },
+    {
+     "team": "大张鲁",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "仁风/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/承影/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵",
+     "eMiss": "乌号/承影",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜",
+     "eMiss": "泰阿/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "赵维机",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵/正始",
+     "eMiss": "乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "息权",
+     "eMiss": "徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "承影/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤/比翼",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/承影",
+     "contribution": 4
+    }
+   ],
+   "score": 19.8,
+   "valuePer1000": 11.65,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 22,
+   "hardDropped": 2
+  },
+  {
+   "ordersn": "202610181202116-1-EOEIRWVUC45LE2",
+   "server": "X5991",
+   "price": 2000,
+   "stars": 111,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 111,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "腾蛇",
+     "contribution": 1.6
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "惊锐",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "三马队",
+     "tier": "T0+",
+     "status": "missTac",
+     "tMiss": "除恶",
+     "eMiss": "斩锐",
+     "contribution": 2
+    },
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "马谡蜀骑",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "避锐/除恶",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三贤队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "息权",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "单骑/枭雄/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "三军齐出/单骑",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜",
+     "eMiss": "泰阿/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 18,
+   "valuePer1000": 9,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 20,
+   "hardDropped": 3
+  },
+  {
+   "ordersn": "202610040002116-1-UTWWDTHFIS2XAC",
+   "server": "X6053",
+   "price": 2000,
+   "stars": 101,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 101,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "仁风/别铭",
+     "contribution": 4
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "沧海",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "虎豹骑",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "全军",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "纯刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭/河内",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "河内",
+     "eMiss": "乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜",
+     "eMiss": "泰阿/别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄/息权",
+     "eMiss": "徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "河内",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "一骑/避其/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤/比翼",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "仁风/别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 13,
+   "valuePer1000": 6.5,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 15,
+   "hardDropped": 2
+  },
+  {
+   "ordersn": "202610181202116-1-0IXV42AITQKHNJ",
+   "server": "X6116",
+   "price": 2000,
+   "stars": 106,
+   "sTac": 22,
+   "forged": null,
+   "heroCount": 106,
+   "full": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "一骑",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄/息权",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风/利兵",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无/利兵",
+     "eMiss": "旋阳万伤/比翼",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 9.6,
+   "valuePer1000": 4.8,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 9,
+   "hardDropped": 1
+  },
+  {
+   "ordersn": "202610111902116-1-QPAPVPXKZDF7RY",
+   "server": "X6089",
+   "price": 1600,
+   "stars": 131,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 131,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "乌号",
+     "contribution": 1.6
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "沧海",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "聪明刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "先声/除恶/定军山",
+     "eMiss": "徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "定军赵",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始/以诱/敛众/定军山",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "乘胜/枭雄/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "纯刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄/乘胜",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "元戎/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "乐无敌",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "追击/枭雄/息权",
+     "eMiss": "徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "惊锐",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "一骑/避其/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "原始肉刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众/先声夺人",
+     "eMiss": "仁风",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    }
+   ],
+   "score": 18.2,
+   "valuePer1000": 11.37,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 17,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202610181302116-1-XSWCWJK1ROSU9H",
+   "server": "X6113",
+   "price": 1500,
+   "stars": 107,
+   "sTac": 24,
+   "forged": null,
+   "heroCount": 107,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "承影/别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "承影",
+     "contribution": 1.6
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "惊锐",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "大张鲁",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始/桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始/一骑",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三贤队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "合纵/息权/望风",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "合纵蜀骑",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "合纵",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "别铭/承影",
+     "contribution": 1
+    },
+    {
+     "team": "钱步",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "胜敌/桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "雨化田",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵",
+     "eMiss": "乌号/徐氏匕首",
+     "contribution": 0.4
+    },
+    {
+     "team": "乐无敌",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/承影/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵",
+     "eMiss": "乌号/承影",
+     "contribution": 0.4
+    },
+    {
+     "team": "赵维机",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵/正始",
+     "eMiss": "乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "奇正",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄/息权",
+     "eMiss": "徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "一骑/避其/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "关羽砍王",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵/白刃",
+     "eMiss": "乌号/惊锐/徐氏匕首",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "沧海",
+     "contribution": 0.4
+    },
+    {
+     "team": "原始肉刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 28.6,
+   "valuePer1000": 19.07,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 2,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "补宝型",
+   "preHard": 28,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202609272302116-1-AE00YHQQIFY1TF",
+   "server": "X6055",
+   "price": 1999,
+   "stars": 88,
+   "sTac": 22,
+   "forged": null,
+   "heroCount": 88,
+   "full": [
+    {
+     "team": "合纵蜀骑",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "钜黍/惊锐",
+     "contribution": 1.6
+    },
+    {
+     "team": "关羽砍王",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "惊锐/徐氏匕首",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "大张鲁",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "垒实/正始/桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "乐无敌",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众/垒实",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "赵维机",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始/垒实",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "一骑/避其/垒实/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/垒实/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "沧海",
+     "contribution": 0.4
+    },
+    {
+     "team": "原始肉刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "垒实/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 14,
+   "valuePer1000": 7,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 14,
+   "hardDropped": 2
+  },
+  {
+   "ordersn": "202610181402116-1-QPLMMFNJQYSFOT",
+   "server": "X6112",
+   "price": 1699,
+   "stars": 99,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 99,
+   "full": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    },
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "同心队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "敛众/桃园",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三贤队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "合纵/息权/望风",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "合纵蜀骑",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "合纵",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "雨化田",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "屈卢/承影",
+     "contribution": 0.4
+    },
+    {
+     "team": "徐庶蜀骑",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "真刚",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤/比翼",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 17.8,
+   "valuePer1000": 10.48,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 17,
+   "hardDropped": 3
+  },
+  {
+   "ordersn": "202610071602116-1-TNSEGL30MCHDPG",
+   "server": "X6030",
+   "price": 1888,
+   "stars": 101,
+   "sTac": 22,
+   "forged": null,
+   "heroCount": 101,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "大张鲁",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始/桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "乘胜/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "钱步",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "胜敌/诱敌/桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜/追击",
+     "eMiss": "泰阿/别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 15.8,
+   "valuePer1000": 8.37,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 2,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "补宝型",
+   "preHard": 11,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202609171802116-1-RWV8P0ZJJFJWUP",
+   "server": "X6011",
+   "price": 1700,
+   "stars": 138,
+   "sTac": 22,
+   "forged": null,
+   "heroCount": 138,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/承影",
+     "contribution": 4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "彤素/承影/别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/承影/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵",
+     "eMiss": "乌号/掩日/承影",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜/追击",
+     "eMiss": "泰阿/别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤/比翼",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/承影",
+     "contribution": 4
+    }
+   ],
+   "score": 8,
+   "valuePer1000": 4.71,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 10,
+   "hardDropped": 2
+  },
+  {
+   "ordersn": "202610030302116-1-8CWN1G7DMNVBHB",
+   "server": "X6052",
+   "price": 2000,
+   "stars": 119,
+   "sTac": 21,
+   "forged": null,
+   "heroCount": 119,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "惊锐",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "同心队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "敛众/桃园/避锐",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "单骑/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "三军齐出/单骑",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭/河内",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵/河内",
+     "eMiss": "乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜",
+     "eMiss": "泰阿/别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "及锋/河内",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风/垒实",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "避其/垒实/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/垒实/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 8.8,
+   "valuePer1000": 4.4,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 14,
+   "hardDropped": 1
+  },
+  {
+   "ordersn": "202610171202116-1-L2XBEDR9WX01LW",
+   "server": "X6030",
+   "price": 1500,
+   "stars": 126,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 126,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "旋阳万伤/比翼",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "同心队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "敛众/桃园/避锐",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "周泰同心",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "桃园/避锐/三军齐出/敛众/除恶/戮战",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭/河内",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵/河内",
+     "eMiss": "掩日",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "河内",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "屈卢/大将",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风/空城",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 7,
+   "valuePer1000": 4.67,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 11,
+   "hardDropped": 1
+  },
+  {
+   "ordersn": "202610101002116-1-I8N78PABOWP5CS",
+   "server": "X6055",
+   "price": 1500,
+   "stars": 123,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 123,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "屈卢",
+     "contribution": 1.6
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "旋阳万伤",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "元戎/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜",
+     "eMiss": "泰阿/别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄/息权",
+     "eMiss": "徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "沧海",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    }
+   ],
+   "score": 14.4,
+   "valuePer1000": 9.6,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 12,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202609082102116-1-QC5OIR2EHR7E4O",
+   "server": "X5993",
+   "price": 1688,
+   "stars": 115,
+   "sTac": 21,
+   "forged": null,
+   "heroCount": 115,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "彤素/徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "乌号/掩日",
+     "contribution": 1.6
+    },
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "彤素",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "飞天王八",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "鼎足",
+     "eMiss": "乌号",
+     "contribution": 1.6
+    },
+    {
+     "team": "大张鲁",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "垒实/正始/桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "乘胜/单骑/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "大司机",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "垒实",
+     "eMiss": "仁风/隕口",
+     "contribution": 1
+    },
+    {
+     "team": "乐无敌",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众/垒实",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "彤素/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "赵维机",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始/垒实",
+     "eMiss": "乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "彤素/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑/乘胜",
+     "eMiss": "屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始/垒实",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "惊锐",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "避其/垒实/计势",
+     "eMiss": "彤素",
+     "contribution": 0.4
+    },
+    {
+     "team": "原始肉刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "垒实/敛众",
+     "eMiss": "仁风/屈卢",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "彤素/徐氏匕首",
+     "contribution": 4
+    }
+   ],
+   "score": 15.8,
+   "valuePer1000": 9.36,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 22,
+   "hardDropped": 5
+  },
+  {
+   "ordersn": "202609301502116-1-FZZNCFQ99NR7NK",
+   "server": "X6055",
+   "price": 1680,
+   "stars": 111,
+   "sTac": 21,
+   "forged": null,
+   "heroCount": 111,
+   "full": [],
+   "onlyGear": [],
+   "missTac": [
+    {
+     "team": "定军赵",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始/以诱/敛众/定军山",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "纯刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄/乘胜",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "元戎/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "乐无敌",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭/河内",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "河内",
+     "eMiss": "乌号/掩日",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜/追击",
+     "eMiss": "泰阿/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "赵维机",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "追击/枭雄/息权",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "河内",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "原始肉刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众/先声夺人",
+     "eMiss": "仁风",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 7.6,
+   "valuePer1000": 4.52,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 14,
+   "hardDropped": 1
+  },
+  {
+   "ordersn": "202610171402116-1-KAFAHFR0GVSMB1",
+   "server": "X6030",
+   "price": 1599,
+   "stars": 103,
+   "sTac": 21,
+   "forged": null,
+   "heroCount": 103,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "飞天王八",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "鼎足",
+     "eMiss": "乌号",
+     "contribution": 1.6
+    },
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "彤素/徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "一骑",
+     "eMiss": "彤素",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "单骑/枭雄/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "雨化田",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "全军",
+     "eMiss": "乌号/彤素/徐氏匕首",
+     "contribution": 0.4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "三军齐出/单骑",
+     "eMiss": "彤素/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "全军",
+     "eMiss": "彤素",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄/息权",
+     "eMiss": "徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园/利兵",
+     "eMiss": "",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 8.6,
+   "valuePer1000": 5.38,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 11,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202610012002116-1-NMGRAHE4C4ULMG",
+   "server": "X6052",
+   "price": 1750,
+   "stars": 95,
+   "sTac": 20,
+   "forged": null,
+   "heroCount": 95,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "乌号",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风/利兵",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无/利兵",
+     "eMiss": "旋阳万伤/比翼",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 3.2,
+   "valuePer1000": 1.83,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 6,
+   "hardDropped": 1
+  },
+  {
+   "ordersn": "202610181202116-1-M3YKN35PHHBOXB",
+   "server": "X6110",
+   "price": 2500,
+   "stars": 108,
+   "sTac": 26,
+   "forged": null,
+   "heroCount": 108,
+   "full": [
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "飞天王八",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "鼎足",
+     "eMiss": "乌号",
+     "contribution": 1.6
+    },
+    {
+     "team": "同心队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "敛众/避锐",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "周泰同心",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "避锐/三军齐出/敛众/除恶/戮战",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵",
+     "eMiss": "乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜/追击",
+     "eMiss": "泰阿/别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 19.2,
+   "valuePer1000": 7.68,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 14,
+   "hardDropped": 1
+  },
+  {
+   "ordersn": "202610100902116-1-2ONCW9X4RT9IA1",
+   "server": "X6053",
+   "price": 2500,
+   "stars": 96,
+   "sTac": 25,
+   "forged": null,
+   "heroCount": 96,
+   "full": [
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "合纵蜀骑",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "乌号",
+     "contribution": 4
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "惊锐",
+     "contribution": 1.6
+    },
+    {
+     "team": "徐庶蜀骑",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "乌号",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "飞天王八",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "鼎足",
+     "eMiss": "乌号",
+     "contribution": 1.6
+    },
+    {
+     "team": "豹纹刀(曹彰)",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "定军山",
+     "eMiss": "乌号",
+     "contribution": 1.6
+    },
+    {
+     "team": "螃蟹队",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "定军山",
+     "eMiss": "徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "曹彰流氓",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "鼎足",
+     "eMiss": "",
+     "contribution": 1.6
+    },
+    {
+     "team": "定军赵",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "以诱/敛众/定军山",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "乐无敌",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜",
+     "eMiss": "泰阿/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "丁奉打火机",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园/敛众/戮战",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "息权",
+     "eMiss": "徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "避其/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "关羽砍王",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "白刃",
+     "eMiss": "乌号/惊锐/徐氏匕首",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "原始肉刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众",
+     "eMiss": "仁风",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "合纵蜀骑",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "乌号",
+     "contribution": 4
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 41.4,
+   "valuePer1000": 16.56,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 3,
+   "t0OnlyGear": 0,
+   "gatePass": true,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "补宝型",
+   "preHard": 27,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202609231202116-1-UJ5MJE5KHRZWVL",
+   "server": "X6028",
+   "price": 2500,
+   "stars": 141,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 141,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "大司机",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "隕口",
+     "contribution": 4
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "钜黍/惊锐",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "曹彰物理骑",
+     "tier": "T0+",
+     "status": "missTac",
+     "tMiss": "七擒",
+     "eMiss": "徐氏匕首",
+     "contribution": 2
+    },
+    {
+     "team": "曹彰流氓",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "鼎足",
+     "eMiss": "",
+     "contribution": 1.6
+    },
+    {
+     "team": "大张鲁",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始/桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "定军赵",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始/以诱/胜兵/敛众/定军山",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "攻其/单骑/枭雄/威震/狼顾",
+     "eMiss": "钜黍/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "乐无敌",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "攻其/单骑",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/攻其/疾胜",
+     "eMiss": "泰阿/别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "赵维机",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵/正始",
+     "eMiss": "乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "攻其",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 0.4
+    },
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "奇正",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "攻其/单骑",
+     "eMiss": "屈卢/承影",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "避其/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "沧海",
+     "contribution": 0.4
+    },
+    {
+     "team": "原始肉刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众",
+     "eMiss": "屈卢",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "大司机",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "隕口",
+     "contribution": 4
+    }
+   ],
+   "score": 23,
+   "valuePer1000": 9.2,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 2,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": false,
+   "profile": "补宝型",
+   "preHard": 22,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202610180602116-1-INU6GSPJUQ2REC",
+   "server": "X6052",
+   "price": 2400,
+   "stars": 99,
+   "sTac": 24,
+   "forged": null,
+   "heroCount": 99,
+   "full": [
+    {
+     "team": "合纵蜀骑",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    },
+    {
+     "team": "赵维机",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "大司机",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "仁风/隕口",
+     "contribution": 4
+    },
+    {
+     "team": "雨化田",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "大张鲁",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "定军赵",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "以诱/敛众/定军山",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "三贤队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "息权",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "乘胜/单骑/枭雄/狼顾",
+     "eMiss": "钜黍/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "三军齐出/单骑",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜/追击",
+     "eMiss": "泰阿/别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑/乘胜",
+     "eMiss": "屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "徐庶蜀骑",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "真刚/掩日",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "大司机",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "仁风/隕口",
+     "contribution": 4
+    }
+   ],
+   "score": 27.4,
+   "valuePer1000": 11.42,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 22,
+   "hardDropped": 3
+  },
+  {
+   "ordersn": "202610171702116-1-26F3B0YZSRLR1V",
+   "server": "X6054",
+   "price": 2500,
+   "stars": 121,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 121,
+   "full": [
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "元戎/别铭",
+     "contribution": 4
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "豹纹刀(曹纯)",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "西阵立功（请边）",
+     "eMiss": "别铭/元戎",
+     "contribution": 1.6
+    },
+    {
+     "team": "聪明刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "先声/除恶/定军山",
+     "eMiss": "徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "乘胜/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "纯刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "新嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵/河内",
+     "eMiss": "乌号/徐氏匕首",
+     "contribution": 0.4
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭/河内",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵/河内",
+     "eMiss": "乌号/掩日",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜/追击",
+     "eMiss": "泰阿/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "追击/息权",
+     "eMiss": "徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "惊锐",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "元戎/别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 18.2,
+   "valuePer1000": 7.28,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": false,
+   "profile": "其他",
+   "preHard": 20,
+   "hardDropped": 1
+  },
+  {
+   "ordersn": "202610181302116-1-7AAZVN3WMIJC0A",
+   "server": "X6116",
+   "price": 2466,
+   "stars": 103,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 103,
+   "full": [
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "豹纹刀(曹纯)",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "西阵立功（请边）",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "虎豹骑",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "奇正",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "大张鲁",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "定军赵",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "以诱/胜兵/敛众/定军山",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "钱步",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "胜敌/兵无/桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵",
+     "eMiss": "乌号/掩日",
+     "contribution": 0.4
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "兵无",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "避其/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/兵无/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园/兵无",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 26.2,
+   "valuePer1000": 10.62,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 2,
+   "t0OnlyGear": 0,
+   "gatePass": true,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "补宝型",
+   "preHard": 24,
+   "hardDropped": 4
+  },
+  {
+   "ordersn": "202609290602116-1-PRKPZ6SXTOAKGH",
+   "server": "X6055",
+   "price": 2499,
+   "stars": 126,
+   "sTac": 22,
+   "forged": null,
+   "heroCount": 126,
+   "full": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "定军赵",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始/以诱/敛众/定军山",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "乘胜/枭雄/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "仁风/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "乐无敌",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜/追击",
+     "eMiss": "泰阿/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "赵维机",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "全军/奇正",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "承影",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "惊锐",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "避其/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "原始肉刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众/先声夺人",
+     "eMiss": "仁风",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 16,
+   "valuePer1000": 6.4,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 24,
+   "hardDropped": 6
+  },
+  {
+   "ordersn": "202610122002116-1-ZJXHDTIAFXQSOZ",
+   "server": "X6089",
+   "price": 2200,
+   "stars": 107,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 107,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "飞天王八",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "鼎足",
+     "eMiss": "乌号/沧海",
+     "contribution": 1.6
+    },
+    {
+     "team": "新晋核弹",
+     "tier": "T0",
+     "status": "missTac",
+     "tMiss": "袭屯",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 1.6
+    },
+    {
+     "team": "多弓队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "火烧/鼎足/当阳",
+     "eMiss": "乌号/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "元戎/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄/息权",
+     "eMiss": "钜黍/徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "避其/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "沧海",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 13.8,
+   "valuePer1000": 6.27,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": false,
+   "profile": "其他",
+   "preHard": 14,
+   "hardDropped": 2
+  },
+  {
+   "ordersn": "202610161702116-1-KSQH0EFUHSTBIB",
+   "server": "X6095",
+   "price": 2100,
+   "stars": 115,
+   "sTac": 23,
+   "forged": null,
+   "heroCount": 115,
+   "full": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    },
+    {
+     "team": "打火机",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "乌号",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "聪明刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "先声/除恶/定军山/一夫",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "定军赵",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "以诱/敛众/定军山",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "马谡蜀骑",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "除恶",
+     "eMiss": "乌号",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "一骑",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "乘胜/单骑/枭雄/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "纯刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄/单骑/乘胜",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "钱步",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "胜敌/诱敌/桃园/敛众",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜/追击",
+     "eMiss": "泰阿/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑/乘胜",
+     "eMiss": "承影",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "绝水",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "惊锐",
+     "contribution": 0.4
+    },
+    {
+     "team": "原始肉刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "游飘/旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 20.4,
+   "valuePer1000": 9.71,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 21,
+   "hardDropped": 4
+  },
+  {
+   "ordersn": "202610071902116-1-H4OB2CUDHRITUS",
+   "server": "X6078",
+   "price": 2499,
+   "stars": 110,
+   "sTac": 21,
+   "forged": null,
+   "heroCount": 110,
+   "full": [
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 2
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭/徐氏匕首",
+     "contribution": 1.6
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "徐氏匕首",
+     "contribution": 1
+    },
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "正始",
+     "eMiss": "",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "三军齐出",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "追击/息权",
+     "eMiss": "钜黍/徐氏匕首/别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "避其/计势",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无/利兵",
+     "eMiss": "旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 4
+    }
+   ],
+   "score": 14,
+   "valuePer1000": 5.6,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": false,
+   "profile": "其他",
+   "preHard": 13,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202609271902116-1-DMBRCVFQHTTT8D",
+   "server": "X6006",
+   "price": 2399,
+   "stars": 113,
+   "sTac": 21,
+   "forged": null,
+   "heroCount": 113,
+   "full": [],
+   "onlyGear": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    },
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "元戎/别铭/徐氏匕首",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "元戎/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵",
+     "eMiss": "掩日",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "徐氏匕首",
+     "contribution": 4
+    }
+   ],
+   "score": 9.4,
+   "valuePer1000": 3.92,
+   "fullT1plus": 0,
+   "onlyGearT1plus": 1,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": false,
+   "profile": "其他",
+   "preHard": 13,
+   "hardDropped": 3
+  },
+  {
+   "ordersn": "202609272002116-1-VC31CVCA0WYSD8",
+   "server": "X6054",
+   "price": 2300,
+   "stars": 124,
+   "sTac": 21,
+   "forged": null,
+   "heroCount": 124,
+   "full": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "王异菜刀",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "单骑/枭雄/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "干锅队",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "仁风/别铭",
+     "contribution": 1
+    },
+    {
+     "team": "衡轭菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇/乌号",
+     "contribution": 0.4
+    },
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "胜兵",
+     "eMiss": "乌号/掩日",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜",
+     "eMiss": "泰阿/别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "杜预菜刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "枭雄/息权",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑",
+     "eMiss": "屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/垒实/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 13.2,
+   "valuePer1000": 5.74,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 14,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202610132102116-1-PVAKUNFH0XT4ET",
+   "server": "X6091",
+   "price": 2200,
+   "stars": 91,
+   "sTac": 22,
+   "forged": null,
+   "heroCount": 91,
+   "full": [
+    {
+     "team": "斩龙刀",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "别铭",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "承影",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "三皇",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "行兵/敛众",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "吴步",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "桃园",
+     "eMiss": "沧海",
+     "contribution": 0.4
+    },
+    {
+     "team": "太监队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "令无",
+     "eMiss": "旋阳万伤/比翼",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 8.6,
+   "valuePer1000": 3.91,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 7,
+   "hardDropped": 0
+  },
+  {
+   "ordersn": "202609221602116-1-0DVXWL4A4WFKL8",
+   "server": "X6030",
+   "price": 2180,
+   "stars": 94,
+   "sTac": 22,
+   "forged": null,
+   "heroCount": 94,
+   "full": [
+    {
+     "team": "甘宁流氓",
+     "tier": "T1",
+     "status": "full",
+     "tMiss": "",
+     "eMiss": "",
+     "contribution": 5
+    }
+   ],
+   "onlyGear": [
+    {
+     "team": "胜兵嘟嘟",
+     "tier": "T2-",
+     "status": "onlyGear",
+     "tMiss": "",
+     "eMiss": "掩日",
+     "contribution": 1.6
+    }
+   ],
+   "missTac": [
+    {
+     "team": "三典藏菜刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "乘胜/单骑/枭雄/威震/狼顾",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "枭雄太刀",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "枭雄",
+     "eMiss": "别铭",
+     "contribution": 1
+    },
+    {
+     "team": "大司机",
+     "tier": "T1",
+     "status": "missTac",
+     "tMiss": "兵无/利兵",
+     "eMiss": "仁风/隕口",
+     "contribution": 1
+    },
+    {
+     "team": "乐无敌",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "敛众/兵无",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "核弹弓",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "电袭",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "白嫖蜀刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "戮力/疾胜/追击",
+     "eMiss": "泰阿/别铭/屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "孙形兵",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "兵无",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "变种物理刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "全军/奇正",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "甘宁法刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "及锋",
+     "eMiss": "别铭",
+     "contribution": 0.4
+    },
+    {
+     "team": "张绣撸铁队",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "单骑/乘胜",
+     "eMiss": "屈卢",
+     "contribution": 0.4
+    },
+    {
+     "team": "属性刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "望风/利兵",
+     "eMiss": "腾蛇",
+     "contribution": 0.4
+    },
+    {
+     "team": "正始大张张",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "利兵",
+     "eMiss": "",
+     "contribution": 0.4
+    },
+    {
+     "team": "砍王",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "乘胜",
+     "eMiss": "惊锐",
+     "contribution": 0.4
+    },
+    {
+     "team": "原始肉刀",
+     "tier": "T2-",
+     "status": "missTac",
+     "tMiss": "兵无/敛众/先声夺人",
+     "eMiss": "仁风/屈卢",
+     "contribution": 0.4
+    }
+   ],
+   "growth": [],
+   "score": 14,
+   "valuePer1000": 6.42,
+   "fullT1plus": 1,
+   "onlyGearT1plus": 0,
+   "t0OnlyGear": 0,
+   "gatePass": false,
+   "baoBaoPass": false,
+   "premiumOk": true,
+   "profile": "其他",
+   "preHard": 18,
+   "hardDropped": 2
+  }
+ ]
+}

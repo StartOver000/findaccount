@@ -1,7 +1,7 @@
 ---
 name: stzb-cbg-account-evaluation
-description: '复用率土之滨藏宝阁账号选号流程。用于率土之滨、藏宝阁、账号筛选、找号、扩样本、武将库匹配、队伍强度榜、战法复核、宝物复核、补件成本、补件周期、最终购买建议等任务。适合比较多个候选号，先按武将库判断理论成队，再按战法和宝物判断可落地强度，最后按到手即战力和短期补宝物收益给出排序。'
-argument-hint: '输入预算区间、候选账号、是否要扩样本，以及最终更看重即战力还是补件成长。'
+description: '复用率土之滨藏宝阁账号选号与自动化找号流程。用于率土之滨、藏宝阁、账号筛选、找号、扩样本、试师白名单刷新、一键采集、武将库匹配、队伍强度榜、战法复核、宝物复核、补件成本、补件周期、最终购买建议、筛选条件策略与预筛分优化等任务。适合比较多个候选号，先按武将库判断理论成队，再按战法和宝物判断可落地强度，最后按到手即战力和短期补宝物收益给出排序；也覆盖 npm run shishi + npm test + find-all.ps1 + strategy-eval.js + filter-strategy.js 的自动化链路。'
+argument-hint: '输入预算区间、候选账号、是否要扩样本，以及最终更看重即战力还是补件成长；自动化任务可直接说明价格档与客户名。'
 user-invocable: true
 ---
 
@@ -29,6 +29,83 @@ user-invocable: true
 - 只需要给游戏攻略，不涉及账号筛选
 - 用户没有给候选账号，也不允许扩样本
 
+## 自动化链路（优先使用，2026-10-25 起）
+
+本仓库已把主链路跑通：刷新试师白名单 → API 直采 → 合并（provenance）→ 单进程报告 → 策略排序。优先走这条链路，只在需要人工复核时回到下面的手工流程。
+
+- 项目总览 / 快速开始：根 [README.md](../../../README.md)
+- 文档索引（规范 / 流程 / 模板 / 榜单）：[docs/README.md](../../../docs/README.md)
+- 所有阈值/权重/文案**只在** [data/strategy-config.json](../../../data/strategy-config.json)，脚本经 `scripts/lib-config.js` / `lib-config.ps1` 读取，禁止写死。
+
+### 0. 刷新试师白名单（免登录，必须先做）
+
+试师区服随赛季滚动，仓库不再手写区间。唯一来源是官方告示板 H5 的 `teamData.json`：
+
+```bash
+npm run shishi       # 更新 data/shishi-open.json / docs/试师赛季白名单.md / data/shishi-open-serverids.txt
+npm test             # 离线回归 = verify-shishi（8 项）+ verify-core（配置单源/data 契约/BOM），不联网
+npm run verify:live  # 可选：额外联网校验官方数据源
+```
+
+- 白名单刷新不需要登录；数据源与原理见 [试师数据源.md](../../../docs/试师数据源.md)；
+- 采集脚本通过 `scripts/lib-shishi.js` 统一读取 `data/shishi-open.json`，**严禁再写死 serverid**；
+- 若 `npm run shishi` 报「数据源可能已停更」，先核对官方 H5，不要用 `--allow-stale` 硬写。
+
+### 1. 采集（需要藏宝阁登录）
+
+```bash
+npm run find          # 等价于下面这行（默认 1500-2500 元、客户名 自用）
+powershell -File scripts/find-all.ps1 -PriceMin 150000 -PriceMax 250000 -Customer 自用
+# 已有数据只重跑合并/报告：
+powershell -File scripts/find-all.ps1 -SkipCollect
+# 单个价格档（浏览器补采，带自定义 Tag）：
+powershell -File scripts/collect.ps1 -PriceMin 150000 -PriceMax 200000 -Tag 1500-2000
+```
+
+- `find-all.ps1` 依次做：`update-shishi --quiet` → `api-collect.js`（L2 门槛 + 预筛分排序）→ `merge-api.js` → `report.js` → 自动购买建议；
+- 首次运行会开浏览器，需在窗口内登录藏宝阁并完成手机验证；cookie 存 `.cbg-profile` 复用；
+- 未登录时列表接口返回 `SESSION_TIMEOUT`，脚本会停下等人处理，不要绕过；
+- 全量采集约 10-15 分钟（慢速 3-4 秒/号防限流），不要并发其他请求。
+
+### 2. 合并（provenance 标注）
+
+- `node scripts/merge-api.js`：按 `ordersn`（藏宝阁商品号）去重生成 `data/accounts-final.json`；
+- 每条记录补 `source`（api / browser）、`capturedAt`（采集时间 ISO）、`statusKind`（`onSale` / `publicity` / `sold` / `delisted` / `other` / `unknown`，由 `l0_data.statusLabels` 归一化）；
+- `l0_data.excludeFromRecommend`（sold / delisted）不进最终推荐；超过 `l0_data.maxStaleDays` 的浏览器详情文件自动跳过并 warn；
+- 每次运行写 `data/run-meta.json`：`runId` / 阶段 / 参数 / 配置指纹 / 计数 / 状态，保留最近 20 次。
+
+### 3. 报告与策略排序
+
+- **单进程报告**：`node scripts/report.js` 一次产出「逐队落地 + 补件成本 + 最终购买建议」，`find-all.ps1` 第 3 步自动调用，输出 `docs/找号报告-<客户>-<日期>.md`；队伍库为 `data/teams.json`（由 `docs/队伍强度排行榜.md` 解析，报告/评分统一读它，不再各自解析榜单）；
+- 策略参数**只在** `data/strategy-config.json`（脚本经 `lib-config` 读取，禁止写死）。当前口径：
+  - L2 列表门槛：五星≥85、S 战法≥20、锻造≥15、稀世≥10（二次优化，原 12）、详情预算 40（`maxDetailCandidates` 上限 80）；
+  - L3 评分：`tierWeight` T0+=10、T0=8、T1=5、T2-=2；只缺宝 ×0.8、缺战法 ×0.2；版本覆盖「司马懿→晋」、跳过弓诸葛；
+  - 硬规则：高 T 缺战法≥2、只缺宝缺≥3 ×0.3、溢价硬门槛（`premiumOver`）；gate（2026-10-25 重标定）：`minFullT1plus` 4 / alt「1 完整 + 3 只缺宝 T1+」/ alt2_baobao「4 只缺宝 T1+ 且真成长≥2」；画像：即战型 / 均衡型 / 补宝型。旧 2/1+2/3&g2 是按「二选一当全必选」的旧口径标的，统一引擎修复后过松（186 样本候选 69），重标定后候选 27 且保留旧候选 13/15；
+- **列表阶段按预筛分排序，不按五星排序**：`scripts/prefilter.js` 的 P 值（S战法权重最大），api-collect 默认按 P 降序抓 40 个详情（原 30）；列表无锻造数时自动改用 `weightsNoForged`；依据见 [筛选条件分析.md](../../../reports/筛选条件策略-20261025/筛选条件分析.md)（r：S战法 0.50 > 价格 0.36 > 锻造 0.21 > 五星 0.18）与 [优化报告.md](../../../reports/筛选策略优化-20261025/优化报告.md)（6 个候选全局 P 排名 1/6/7/28/34/69；top40 命中 5/6）；
+- 排序脚本 `node scripts/strategy-eval.js`（`npm run strategy`），产出 `reports/策略落地-20261025/`（含策略排序.md 与 strategy-eval.json）；
+- 筛选条件策略分析 `node scripts/filter-strategy.js`，产出 `reports/筛选条件策略-20261025/`（门槛/排序对比与推荐参数）；
+- 2026-10-25 实采验证（35 个号）：预筛分 Top10 抓到全部 2 个候选，五星排序 Top20 全漏；当前试师新服候选集中在 2466–2500，见 [实测报告.md](../../../reports/筛选策略实测-20261025/实测报告.md)；
+- 设计取舍与数据缺陷见 [策略落地与评价.md](../../../reports/策略落地-20261025/00-策略落地与评价.md)。
+
+### 4. 验收清单
+
+- `npm test` 全绿 = `verify-shishi`（8/8）+ `verify-core`（配置单源 / runmeta / data 契约 / 接线 / BOM）；
+- CI（`.github/workflows/test.yml`）绿：`npm ci --ignore-scripts` → `npm test` → 全量 `node --check` → 递归 pwsh Parser → 递归 ps1 BOM 检查（**不跑联网采集**）；
+- `data/shishi-open.json` 的 `count` > 0（2026-10-25 为 65）；
+- `find-all.ps1 -SkipCollect -SkipReport` 退出码 0（离线冒烟）；
+- `node scripts/filter-strategy.js` 退出码 0，且 `reports/筛选条件策略-20261025/筛选条件分析.md` 里「推荐筛选条件」与 `data/strategy-config.json` 的 `l2_list_filter` 一致；
+- 报告里的区服均为当前开放试师（X 区服能在 `shishi-open.json` 的 `xid` 中找到）；
+- 报告/推荐能看到 provenance（`capturedAt` / `statusKind`），超过 `l0_data.maxStaleDays` 的数据必须标注「旧快照」；
+- 根 [README.md](../../../README.md) 的快速开始可照抄执行；历史脚本只允许出现在 `scripts/legacy/`（见 [legacy README](../../../scripts/legacy/README.md)）。
+
+### 已知坑（2026-10 实测）
+
+- 藏宝阁旧硬编码 65 服（44748-44874）全部关服；旧手动白名单还误加了 X5781-X5785/X5829/X5830，已由官方数据源替换；
+- 备用源 `www.163hot.net` 已停更（2026-05），静态源失败会因 60 天校验 fail-closed，不会写残缺白名单；
+- `.ps1` 必须 UTF-8 带 BOM，否则 Windows PowerShell 5.1 解析中文注释会报 “string is missing the terminator” 且输出乱码；`.gitattributes` 只管换行不管 BOM，`npm test` 与 CI 会检查前 3 字节 `EF BB BF`；
+- 大神网页版工具卡点击无效、藏宝阁区服列表无试师标记，这两条路已排除，不要重复尝试；
+- 历史脚本（`plan5-v2.ps1`、`lib-cbg.ps1`、`count-teams.ps1`、`t0-*.ps1`、`find-accounts-20260807.ps1`、`fetch_cbg_api.ps1`）已归档到 `scripts/legacy/`，只作复盘参考，**不要在新流程里调用**。
+
 ## 关键原则
 
 - 不以详情页展示阵容作为最终依据，展示阵容只能做线索
@@ -53,12 +130,18 @@ user-invocable: true
 
 可直接参考这些现成文档，避免重复摸索：
 
-- [选号条件与筛号流程.md](../../../选号条件与筛号流程.md)
-- [队伍强度排行榜.md](../../../队伍强度排行榜.md)
-- [扩样本候选-12个-20260523.md](../../../扩样本候选-12个-20260523.md)
-- [12候选-武将库强度榜匹配-20260523.md](../../../12候选-武将库强度榜匹配-20260523.md)
-- [5强候选-战法宝物基础件复核-20260523.md](../../../5强候选-战法宝物基础件复核-20260523.md)
-- [最终购买建议-结合补件成本与周期-20260523.md](../../../最终购买建议-结合补件成本与周期-20260523.md)
+- [README.md](../../../README.md)（项目总览、快速开始、配置说明、FAQ、免责声明）
+- [docs/README.md](../../../docs/README.md)（文档索引：规范 / 流程 / 模板 / 榜单）
+- [试师数据源.md](../../../docs/试师数据源.md)（白名单数据源、脚本、校验）
+- [试师赛季白名单.md](../../../docs/试师赛季白名单.md)（自动生成，勿手改）
+- [选号条件与筛号流程.md](../../../docs/选号条件与筛号流程.md)（固定条件、三层筛号流程、人工复核）
+- [队伍强度排行榜.md](../../../docs/队伍强度排行榜.md)（榜单原文；脚本读其解析产物 `data/teams.json`）
+- [strategy-config.json](../../../data/strategy-config.json)（漏斗与权重参数唯一来源）
+- [策略落地与评价.md](../../../reports/策略落地-20261025/00-策略落地与评价.md)（策略参数取舍与实际跑数）
+- [筛选条件分析.md](../../../reports/筛选条件策略-20261025/筛选条件分析.md)（阈值 vs 排序的数据证据、预筛分与推荐参数）
+- [优化报告.md](../../../reports/筛选策略优化-20261025/优化报告.md)（二次优化：稀世 10、预算 40、无锻造权重、价格窗口）
+- [scripts/legacy/README.md](../../../scripts/legacy/README.md)（历史脚本归档与现行替代）
+- 历史报告归档（只复盘，结论勿直接复用）：[扩样本候选-12个-20260523.md](../../../reports/legacy/扩样本候选-12个-20260523.md)、[12候选-武将库强度榜匹配-20260523.md](../../../reports/legacy/12候选-武将库强度榜匹配-20260523.md)、[5强候选-战法宝物基础件复核-20260523.md](../../../reports/legacy/5强候选-战法宝物基础件复核-20260523.md)、[最终购买建议-结合补件成本与周期-20260523.md](../../../reports/legacy/最终购买建议-结合补件成本与周期-20260523.md)
 
 ## 标准流程
 
@@ -95,23 +178,26 @@ user-invocable: true
 
 ### 第三步：按强度榜做武将库理论匹配
 
-以 [队伍强度排行榜.md](../../../队伍强度排行榜.md) 为唯一榜单来源。
+以 [队伍强度排行榜.md](../../../docs/队伍强度排行榜.md) 为唯一榜单来源。
 
 做法：
 
-- 逐队提取 T0+、T0-、T1 的三武将核心
+- 逐队提取 T0+、T0、T1 的三武将核心（T2- 可作补充参考）
 - 只统一安全别名，例如 XP 姜维、祝融、吕吕、弓吕等
 - 不要把弓诸葛合并到普通诸葛亮，不要把榜单司马懿直接合并到普通魏司马懿
 - 只要候选号同时拥有该队三名核心武将，就记为理论可组
 
-建议权重：
+建议权重（唯一配置源：`data/strategy-config.json` 的 `l3_scoring.tierWeight`）：
 
 - T0+ = 10
-- T0- = 6
-- T1 = 3
-- T2- = 1（2026 第三季度新增档位：打火机、狗刀）
+- T0 = 8
+- T1 = 5
+- T2- = 2
 
-> 榜单以 `队伍强度排行榜.md` 为准，当前为 2026 第三季度版
+只缺宝 ×0.8、缺战法 ×0.2（`onlyGearFactor` / `missTacticFactor`）；版本覆盖与跳过武将以配置为准。
+
+> 手工快速估算可用这组数；正式批量排序一律 `npm run strategy`，不要另抄一份权重。
+> 榜单以 [队伍强度排行榜.md](../../../docs/队伍强度排行榜.md) 为准，当前为 2026 第三季度版。
 
 这一轮的目的：
 
@@ -126,7 +212,7 @@ user-invocable: true
 建议只复核：
 
 - T0+
-- T0-
+- T0
 
 做法：
 
@@ -163,7 +249,7 @@ user-invocable: true
 
 ### 1. 当前可直接玩的队伍
 
-- 列出每只账号当前完整落地的 T0+、T0- 队伍
+- 列出每只账号当前完整落地的 T0+、T0 队伍
 - 说明它们的即战力强弱
 
 ### 2. 只补宝物后的短期成长
@@ -190,7 +276,7 @@ user-invocable: true
 - 第一轮武将覆盖高，不代表第二轮还能站得住
 - 如果第一轮把同名异版本武将混算，整个 shortlist 都可能被污染，必须从候选排序开始重算
 - 如果一个号大量队伍都卡在战法上，要明显降权
-- 如果一个号当前就有 2 到 3 支完整落地的 T0+/T0-，且还能靠补宝物再增加 1 支，这种号最适合买
+- 如果一个号当前就有 2 到 3 支完整落地的 T0+/T0，且还能靠补宝物再增加 1 支，这种号最适合买
 - 如果两只号短期可兑现强度接近，优先选更便宜的那只
 - 如果低价号已经能满足到手即玩，就不要为了远期潜力多付很多溢价
 
@@ -202,11 +288,12 @@ user-invocable: true
 
 ## 使用 Skill 时的建议动作
 
-1. 先确认用户是要单号复核，还是多号比较
-2. 如果是多号比较，优先扩样本
-3. 第一轮先按武将库做理论匹配
-4. 第二轮只对 shortlist 做战法与宝物复核
-5. 最终结论必须明确区分：到手即战力、只补宝物后的短期成长、长期但暂不兑现的潜力
+1. 先确认用户是要单号复核、多号比较，还是跑自动化链路（采集/刷新白名单）
+2. 自动化场景先 `npm run shishi && npm test`，再跑 `npm run find`（内部 `api-collect` → `merge-api` → `report.js`）；人工复核场景先确认候选范围
+3. 如果是多号比较，优先扩样本
+4. 第一轮先按武将库做理论匹配
+5. 第二轮只对 shortlist 做战法与宝物复核
+6. 最终结论必须明确区分：到手即战力、只补宝物后的短期成长、长期但暂不兑现的潜力
 
 ### 浏览器页面操作规则（强制）
 

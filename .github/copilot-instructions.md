@@ -7,12 +7,16 @@ description: "率土之滨藏宝阁账号评估项目的全局规则:账号筛�
 ## 一、核心规则
 
 ### 文件与命名
-- **目录结构**(2026-08-07 整理):
-  - `docs/` — 所有 .md 文档 + 队伍强度榜分段图片(榜单在 `docs/队伍强度排行榜.md`)
-  - `data/` — 所有 .json 数据(最终汇总 `data/accounts-final.json`)+ `data/tmp/` 中间文本
-  - `scripts/` — 所有 .ps1/.js 脚本(公共库 `scripts/lib-cbg.ps1`)
+- **目录结构**(2026-10-25 整理):
+  - `docs/` — 规范/流程/模板 + 榜单(`docs/队伍强度排行榜.md`)+ 榜单分段图片;索引见 `docs/README.md`;历史报告已移到 `reports/legacy/`
+  - `data/` — 配置单源 `data/strategy-config.json`、采集数据(最终汇总 `data/accounts-final.json`)、队伍库 `data/teams.json`、运行元数据 `data/run-meta.json`(gitignore);备份/旧快照(`data/backups/`、`*.bak.json`)不进 git
+  - `scripts/` — 主链路脚本;公共库:`lib-config.js`/`lib-config.ps1`(配置单源,禁止脚本写死阈值)、`lib-shishi.js`、`lib-runmeta.js`、`lib-scoring.js`、`plan5-core.js`;历史脚本归档在 `scripts/legacy/`,不要在新流程调用
+  - `reports/` — 策略评估输出(`reports/策略落地-*/`、`reports/筛选条件策略-*/`)+ 历史报告归档 `reports/legacy/`
+  - `README.md` — 项目总览/快速开始/配置说明/FAQ/免责声明
+- **自动化主链路**:`npm run shishi`(白名单)→ `npm run find`(api-collect → merge-api → report.js)→ `npm run strategy`;离线回归 `npm test`(verify-shishi + verify-core);CI `.github/workflows/test.yml` 不联网、不采集
+- **provenance**:账号记录必须带 `source`(api/browser)/`capturedAt`/`statusKind`(由 `l0_data.statusLabels` 归一化),超 `maxStaleDays` 标注旧快照;`sold`/`delisted` 不进推荐
 - 命名:候选文档 `{描述}-{日期}.md`;最终建议 `最终购买建议-{特性}-{日期}.md`;数据 `{阶段}-{版本}.json`;脚本 `{阶段}-{版本}.ps1`
-- 脚本一律用 `$PSScriptRoot` 相对定位(docs/data),禁止硬编码 `D:\WorkSpace` 路径
+- 脚本一律用 `$PSScriptRoot`/`require('path')` 相对定位(docs/data),禁止硬编码 `D:\WorkSpace` 路径
 
 ### 同名异版本武将硬规则
 - 弓诸葛 ≠ 普通诸葛亮;榜单司马懿(晋) ≠ 普通魏司马懿
@@ -25,17 +29,22 @@ description: "率土之滨藏宝阁账号评估项目的全局规则:账号筛�
 - 最终建议:区分「到手即战力」「只补宝物短期成长」「长期潜力」
 - 武将、战法补件成本高/周期长,不纳入短期方案;宝物是唯一默认允许的短期补件方向
 
-### 评分权重
-- T0+=10 分,T0-=6 分,T1=3 分,**T2-=1 分**(第三季度新增档位:打火机、狗刀)
-- 榜单以 `队伍强度排行榜.md` 为准(2026 第三季度版)
+### 评分权重与阈值(唯一来源 `data/strategy-config.json`)
+- **禁止在本文件/脚本/提示词里另抄一套权重**;需要数值时从配置读取,或写明"以配置为准"
+- `l3_scoring.tierWeight`(2026-10-25):T0+=10、T0=8、T1=5、T2-=2;只缺宝 ×0.8(`onlyGearFactor`)、缺战法 ×0.2(`missTacticFactor`)
+- 版本武将/跳过武将:`versionOverrides`(如"司马懿"要求晋)、`skipHeroes`(弓诸葛无数据跳过)
+- 硬规则 `hardRules`:高 T 缺战法≥2 降权、只缺宝缺≥3 ×0.3、溢价门槛(`premiumOver`:价格>2000 需完整 T1+≥1 且 T0 只缺宝≥1)
+- 入选 gate(2026-10-25 重标定):`minFullT1plus`=4;alt(1 完整 + 3 只缺宝 T1+);alt2_baobao(4 只缺宝 T1+ 且真成长≥2);画像 `profiles`(即战型/均衡型/补宝型)。旧 `2/1+2` 按旧口径标定,统一引擎修复「二选一当全必选」后过松,已重标定
+- L2 列表门槛/预算在 `l2_list_filter`(五星≥85、S战法≥20、锻造≥15、稀世≥10、详情预算 40);数据时效在 `l0_data`(`maxStaleDays`=14)
+- 榜单以 `docs/队伍强度排行榜.md` 为准(2026 第三季度版),脚本解析产物为 `data/teams.json`
 
 ### 最终排序
 - 短期强度接近时优先选便宜的;低价已够玩就不为远期潜力溢价
 - 已完整落地 = 武将+战法+宝物齐;"只缺宝物" = 短期最有补件价值;"缺战法" = 短期不指望;"战法宝物都缺" = 降权
 
 ### 决策矩阵
-- shortlist 最终排序用 `决策矩阵模板.md`
-- 六维加权:到手队数30% + 补宝新增15% + 武将库20% + 价格20% + 资产10% + 版本5%
+- shortlist 最终排序用 `docs/决策矩阵模板.md`
+- 六维加权:到手队数30% + 补宝新增15% + 武将库20% + 价格20% + 资产10% + 版本5%(人工打分模板;批量自动排序以 `npm run strategy` 的配置口径为准)
 - 评分前必须逐队复核武将/战法/宝物的落地状态
 
 ## 二、浏览器操作(强制)
@@ -78,4 +87,5 @@ description: "率土之滨藏宝阁账号评估项目的全局规则:账号筛�
 
 ## 四、试师服务器白名单
 
-- 筛选只允许白名单区服,清单见 `试师赛季白名单.md`
+- 筛选只允许白名单区服:全量清单见 `docs/试师赛季白名单.md`,当前开放区服见 `data/shishi-open.json`(均由 `npm run shishi` 自动生成,勿手改)
+- 采集脚本统一经 `scripts/lib-shishi.js` 读 `data/shishi-open.json`,禁止再写死 serverid;刷新原理与校验见 `docs/试师数据源.md`

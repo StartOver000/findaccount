@@ -1,0 +1,100 @@
+# ============================================================
+# CI — 离线校验（不联网、不采集）
+#
+# 覆盖：
+#   1. npm test            = verify-shishi + verify-core（离线回归）
+#   2. node --check        = scripts/ 下全部 .js 语法
+#   3. pwsh Parser         = scripts/ 下全部 .ps1 语法（含 scripts/legacy/）
+#   4. ps1 BOM 检查        = 每个 .ps1 前 3 字节必须为 EF BB BF
+#
+# 明确不跑：api-collect.js（需登录）、update-shishi.js --live（联网）、
+#           find-all.ps1（真实采集）、collect/cbg-detail-extract（Playwright）。
+# ============================================================
+name: test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-checks:
+    name: 离线校验（Windows / Node 22）
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖（跳过 postinstall，不下载 Playwright 浏览器）
+        run: npm ci --ignore-scripts
+
+      - name: 离线回归测试（npm test = verify-shishi + verify-core）
+        run: npm test
+
+      - name: JS 语法检查（node --check，全量）
+        shell: pwsh
+        run: |
+          $failed = 0
+          $files = @(Get-ChildItem scripts -Recurse -File -Filter *.js)
+          foreach ($f in $files) {
+            node --check $f.FullName
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error file=$($f.FullName)::node --check 失败"
+              $failed = 1
+            }
+          }
+          if ($failed -ne 0) { exit 1 }
+          Write-Host "node --check 全部通过：$($files.Count) 个 .js"
+
+      - name: PowerShell 语法检查（pwsh Parser，含 legacy）
+        shell: pwsh
+        run: |
+          $failed = 0
+          $files = @(Get-ChildItem scripts -Recurse -File -Filter *.ps1)
+          foreach ($f in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $f.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors -and $errors.Count -gt 0) {
+              $failed = 1
+              foreach ($e in $errors) {
+                Write-Host "::error file=$($f.FullName)::$($e.Message)"
+              }
+            }
+          }
+          if ($failed -ne 0) { exit 1 }
+          Write-Host "PowerShell 语法检查通过：$($files.Count) 个 .ps1"
+
+      - name: ps1 UTF-8 BOM 检查（前 3 字节 EF BB BF）
+        shell: pwsh
+        run: |
+          $failed = 0
+          $files = @(Get-ChildItem scripts -Recurse -File -Filter *.ps1)
+          foreach ($f in $files) {
+            $bytes = [System.IO.File]::ReadAllBytes($f.FullName)
+            $hasBom = ($bytes.Length -ge 3) -and
+                      ($bytes[0] -eq 0xEF) -and
+                      ($bytes[1] -eq 0xBB) -and
+                      ($bytes[2] -eq 0xBF)
+            if (-not $hasBom) {
+              $failed = 1
+              Write-Host "::error file=$($f.FullName)::缺少 UTF-8 BOM（用「UTF-8 with BOM」重新保存）"
+            }
+          }
+          if ($failed -ne 0) { exit 1 }
+          Write-Host "UTF-8 BOM 检查通过：$($files.Count) 个 .ps1"

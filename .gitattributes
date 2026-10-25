@@ -1,0 +1,37 @@
+# ============================================================
+# .gitattributes — 行尾与二进制约定（2026-10-25）
+#
+# 背景：
+#   - 本仓库只在 Windows 上运行；.ps1 被 Windows PowerShell 5.1 解析时
+#     要求 UTF-8 BOM，且行尾用 CRLF 最稳（BOM 是文件内容，不由 git 生成）。
+#   - .js / .json / .md 统一 LF，避免跨平台 diff 噪声。
+#   - 图片/Office 文件按二进制处理，禁止行尾转换。
+#
+# 注意：换行归一化不会增删 BOM；新增/修改 .ps1 后仍需自带 UTF-8 BOM
+#       （CI 与 npm test 会检查前 3 字节 EF BB BF）。
+# ============================================================
+
+* text=auto
+
+# Windows PowerShell 脚本：CRLF（BOM 由脚本自身保证）
+*.ps1 text eol=crlf
+
+# 源码/配置/文档：LF
+*.js   text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.txt  text eol=lf
+
+# 二进制：不做行尾转换、不做文本 diff
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.xlsx binary
+*.xls  binary
+*.docx binary
+*.pptx binary
+*.pdf  binary

@@ -1,4 +1,4 @@
-# Fetch CBG API data and parse account info
+﻿# Fetch CBG API data and parse account info
 param(
     [string]$OutputFile = "cbg_accounts.json"
 )
