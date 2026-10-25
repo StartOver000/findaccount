@@ -3,17 +3,30 @@
 # 输入: accounts-detail.json (cbg-detail-extract.js 产出)
 # 输出: 控制台排名表 + accounts-report.md
 #
-# 评估维度:
-#   - 武将匹配分: Q3榜单 T0+=10 / T0=8 / T1=3 / T2-=1 (含司马懿/弓诸葛版本硬规则跳过)
+# 评估维度（阈值/权重全部来自 data/strategy-config.json，经 lib-config.ps1 读取）:
+#   - 武将匹配分: 档位权重 = l3_scoring.tierWeight（当前 T0+=10 / T0=8 / T1=5 / T2-=2）
+#   - 版本硬规则: l3_scoring.versionOverrides（如 司马懿 要求「晋」版本）+ 本文件历史版本表
+#   - 跳过武将: l3_scoring.skipHeroes（含该武将的队伍不计入匹配）
 #   - 满红: 采用概览满红总数; 核心觉醒 = 觉醒(marks含极)且为核心武将
 #   - 战法/宝物: 对照 T0+/T0 队伍需求统计命中数(参考)
-#   - 吃红度队伍降权: 三典藏菜刀/大张鲁/沙魏马/胡芳网红/父子队 匹配时减半
+#   - 吃红度队伍降权: 三典藏菜刀/大张鲁/沙魏马/胡芳网红/父子队 匹配时减半（队伍名单属业务命名，未入配置）
+#   - 推荐排除: l0_data.excludeFromRecommend（sold/delisted 状态不进入推荐榜单）
 
 param(
     [string]$DataFile = (Join-Path (Split-Path $PSScriptRoot -Parent) 'data\accounts-final.json'),
     [string]$RankFile = (Join-Path (Split-Path $PSScriptRoot -Parent) 'docs\队伍强度排行榜.md'),
     [string]$OutReport = (Join-Path (Split-Path $PSScriptRoot -Parent) 'docs\accounts-report.md')
 )
+
+# 配置单源：data/strategy-config.json（Node 侧 lib-config.js 读同一份）
+. "$PSScriptRoot\lib-config.ps1"
+$L0 = Get-StzbL0
+$L1 = Get-StzbL1
+$L2 = Get-StzbL2
+$L3 = Get-StzbL3
+$tierWeight = Get-StzbTierWeight
+$cfgFp = Get-StzbConfigFingerprint
+Write-StzbEffective -Prefix '[analyze]'
 
 if (-not (Test-Path $DataFile)) { Write-Error "缺少 $DataFile"; exit 1 }
 
@@ -103,6 +116,20 @@ $versionReq = @{
     '姜维' = '蜀'   # 赵维机等用普通蜀姜维(XP姜维已单独要求XP)
 }
 
+# 配置覆盖：l3_scoring.versionOverrides 追加/覆盖版本硬规则（如 司马懿 → 晋）
+$cfgVersionOverrides = 0
+foreach ($p in $L3.versionOverrides.PSObject.Properties) { $versionReq[$p.Name] = [string]$p.Value; $cfgVersionOverrides++ }
+# 配置：l3_scoring.skipHeroes —— 含这些武将的榜单队伍整队跳过（原硬编码 弓诸葛/司马懿）
+$skipHeroSet = @{}
+foreach ($h in @($L3.skipHeroes)) { if ($h) { $skipHeroSet[[string]$h] = $true } }
+# 档位权重/排序全部来自 l3_scoring.tierWeight，缺失档位计 0 并汇总警告（不再静默写死 switch）
+$tierW = @{}
+$tierOrder = @{}
+$tierIdx = 0
+foreach ($p in $tierWeight.PSObject.Properties) { $tierW[$p.Name] = [int]$p.Value; $tierOrder[$p.Name] = $tierIdx; $tierIdx++ }
+$missingTiers = @{}
+Write-Host "版本硬规则: $($versionReq.Count) 项（其中配置覆盖 $cfgVersionOverrides 项）| 跳过武将: $(@($L3.skipHeroes) -join ',') | tier权重: $(($tierWeight.PSObject.Properties | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ' ')"
+
 # 核心武将清单(所有队伍核心, Normalize 后去重)
 $coreHeroSet = @{}
 foreach ($t in $teams) { foreach ($h in $t.Heroes) { $coreHeroSet[(Normalize-Hero $h)] = $true } }
@@ -137,6 +164,33 @@ $tacticMap = @{
 $accounts = Get-Content -LiteralPath $DataFile -Raw -Encoding UTF8 | ConvertFrom-Json
 Write-Host "账号数: $($accounts.Count)"
 
+# 数据快照时间 / 来源分布 / 状态分布 / 推荐排除集（全部配置驱动）
+$captured = @()
+foreach ($a in $accounts) {
+    if ($a.capturedAt) { try { $captured += [datetime]::Parse([string]$a.capturedAt) } catch { } }
+}
+if ($captured.Count -gt 0) {
+    $minCap = ($captured | Measure-Object -Minimum).Minimum
+    $maxCap = ($captured | Measure-Object -Maximum).Maximum
+    $snapText = "$($minCap.ToString('yyyy-MM-dd HH:mm')) ~ $($maxCap.ToString('yyyy-MM-dd HH:mm'))（$($captured.Count)/$($accounts.Count) 条有 capturedAt）"
+} else {
+    $snapText = "无 capturedAt 字段（旧数据），文件时间 $((Get-Item -LiteralPath $DataFile).LastWriteTime.ToString('yyyy-MM-dd HH:mm'))"
+}
+$sourceStats = @{}
+$statusStats = @{}
+foreach ($a in $accounts) {
+    $src = if ($a.source) { [string]$a.source } else { 'unknown' }
+    $stk = if ($a.statusKind) { [string]$a.statusKind } else { Get-StzbStatusKind -Text $a.overview.status }
+    $sourceStats[$src] = 1 + [int]$sourceStats[$src]
+    $statusStats[$stk] = 1 + [int]$statusStats[$stk]
+}
+function Format-StatMap([hashtable]$map) {
+    return (($map.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Key) $($_.Value)" }) -join ' / ')
+}
+$excludedKinds = @($L0.excludeFromRecommend)
+Write-Host "数据快照: $snapText"
+Write-Host "来源分布: $(Format-StatMap $sourceStats) | 状态分布: $(Format-StatMap $statusStats) | 推荐排除: $($excludedKinds -join ',') | config: $cfgFp"
+
 $report = @()
 foreach ($acc in $accounts) {
     if (-not $acc.overview) { continue }
@@ -147,6 +201,9 @@ foreach ($acc in $accounts) {
     $label = "$listSrv ¥$($ov.price)"
     # 商品链接(去掉追踪参数)
     $cleanUrl = if ($ov.url) { ($ov.url -split '\?')[0] } else { '' }
+    # 数据溯源/状态（新数据由采集/合并写入；旧数据现场归一化）
+    $statusKind = if ($acc.statusKind) { [string]$acc.statusKind } else { Get-StzbStatusKind -Text $ov.status }
+    $source = if ($acc.source) { [string]$acc.source } else { 'unknown' }
 
     # 武将名字 → marks 列表(用于版本/阵营校验)
     $heroMarks = @{}
@@ -158,7 +215,9 @@ foreach ($acc in $accounts) {
     # 武将匹配(含版本/阵营校验: 汉荀彧/XP姜维等不能由普通同名顶替)
     $matched = @()
     foreach ($teamDef in $teams) {
-        if ($teamDef.Heroes -contains '弓诸葛' -or $teamDef.Heroes -contains '司马懿') { continue }
+        $skipTeam = $false
+        foreach ($th in $teamDef.Heroes) { if ($skipHeroSet.ContainsKey([string]$th)) { $skipTeam = $true; break } }
+        if ($skipTeam) { continue }
         $ok = $true
         foreach ($h in $teamDef.Heroes) {
             $nh = Normalize-Hero $h
@@ -175,14 +234,14 @@ foreach ($acc in $accounts) {
 
     $score = 0
     foreach ($m in $matched) {
-        $w = switch ($m.Tier) { 'T0+' { 10 } 'T0' { 8 } 'T0-' { 6 } 'T1' { 3 } 'T2-' { 1 } default { 0 } }
+        $w = if ($tierW.ContainsKey([string]$m.Tier)) { $tierW[[string]$m.Tier] } else { $missingTiers[[string]$m.Tier] = $true; 0 }
         if ($m.Team -in $redSensitive) { $w = [math]::Ceiling($w / 2) }  # 吃红度降权
         $score += $w
     }
     $t0p = @($matched | Where-Object Tier -eq 'T0+').Count
     $t0 = @($matched | Where-Object Tier -eq 'T0').Count
     $t0m = @($matched | Where-Object Tier -eq 'T0-').Count
-    $topTeams = (($matched | Sort-Object @{ Expression = { switch ($_.Tier) { 'T0+' { 0 } 'T0' { 1 } 'T0-' { 2 } 'T1' { 3 } 'T2-' { 4 } } } } | Select-Object -First 6 | ForEach-Object { "$($_.Team)($($_.Tier))" }) -join '、')
+    $topTeams = (($matched | Sort-Object @{ Expression = { if ($tierOrder.ContainsKey([string]$_.Tier)) { $tierOrder[[string]$_.Tier] } else { 999 } } } | Select-Object -First 6 | ForEach-Object { "$($_.Team)($($_.Tier))" }) -join '、')
 
     # 满红 = 概览满红总数(详情页无武将级红度; marks 的「极」是觉醒非满红)
     $fullRedAll = 0
@@ -227,27 +286,51 @@ foreach ($acc in $accounts) {
         EquipTotal = $equipTotal
         TopTeams = $topTeams
         FullRedCoreList = ($awakeCore -join ',')
+        StatusKind = $statusKind
+        Source = $source
     }
 }
 
 # ========== 3. 输出排名 ==========
+$dateStr = Get-Date -Format 'yyyyMMdd'
+if ($missingTiers.Count -gt 0) {
+    Write-Warning "以下档位不在 l3_scoring.tierWeight 中，计 0 分: $(@($missingTiers.Keys) -join ',')（建议在 data/strategy-config.json 补齐）"
+}
+$ordered = @($report | Sort-Object @{ Expression = 'Score'; Descending = $true }, Price)
+$recommendable = @($ordered | Where-Object { $excludedKinds -notcontains $_.StatusKind })
+$excludedRows = @($ordered | Where-Object { $excludedKinds -contains $_.StatusKind })
 Write-Host ''
-Write-Host '===== 账号评估排名(按武将分降序) ====='
+Write-Host "===== 账号评估排名(按武将分降序; 已排除 $(($excludedKinds -join '/')) 状态 $($excludedRows.Count) 个) ====="
 Write-Host ("{0,-18} {1,6} {2,4} {3,4} {4,4} {5,4} {6,4} {7,4} | {8}" -f '账号', '价格', '分', 'T0+', 'T0', '满红', '核觉醒', '战法/宝', '队伍')
-foreach ($r in ($report | Sort-Object @{ Expression = 'Score'; Descending = $true }, Price)) {
+foreach ($r in $recommendable) {
     Write-Host ("{0,-18} {1,6} {2,4} {3,4} {4,4} {5,4} {6,4} {7,3}/{8,3} | {9}" -f $r.Label, $r.Price, $r.Score, $r.T0p, $r.T0, $r.FullRedAll, $r.FullRedCore, $r.TacticHit, $r.EquipHit, $r.TopTeams)
+}
+foreach ($r in $excludedRows) {
+    Write-Host ("{0,-18} {1,6} {2,4} [已排除:$($r.StatusKind)]" -f $r.Label, $r.Price, $r.Score)
 }
 
 # 生成报告文件
 $sb = @()
-$sb += '# 账号评估报告 - 20260807'
+$sb += "# 账号评估报告 - $dateStr"
+$sb += ''
+$sb += "> 数据快照: $snapText"
+$sb += "> 来源分布: $(Format-StatMap $sourceStats) | 状态分布: $(Format-StatMap $statusStats)"
+$sb += "> 推荐排除状态: $($excludedKinds -join ',')（已排除 $($excludedRows.Count) 个；数据源 $DataFile）"
+$sb += "> 配置: data/strategy-config.json（sha1 前8位 $cfgFp; tier权重 $(($tierWeight.PSObject.Properties | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ' '); 跳过武将 $(@($L3.skipHeroes) -join ','); 版本覆盖 $(($L3.versionOverrides.PSObject.Properties | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ','))"
 $sb += ''
 $sb += '> 武将70% + 战法15% + 宝物10% + 红度5% 框架; 满红=概览满红数, 核心觉醒=觉醒核心武将; 吃红度队伍(三典藏/大张鲁/沙魏马/胡芳网红/父子队)降权'
 $sb += ''
 $sb += '| 账号 | 价格 | 武将分 | T0+ | T0 | 满红 | 核心觉醒 | 战法命中 | 宝物命中 | 代表队伍 | 链接 |'
 $sb += '|---|---|---|---|---|---|---|---|---|---|---|'
-foreach ($r in ($report | Sort-Object @{ Expression = 'Score'; Descending = $true }, Price)) {
+foreach ($r in $recommendable) {
     $sb += "| $($r.Label) | $($r.Price) | $($r.Score) | $($r.T0p) | $($r.T0) | $($r.FullRedAll) | $($r.FullRedCore) | $($r.TacticHit)/$($r.TacticTotal) | $($r.EquipHit)/$($r.EquipTotal) | $($r.TopTeams) | [$($r.Label)]($($r.Url)) |"
+}
+if ($excludedRows.Count -gt 0) {
+    $sb += ''
+    $sb += "## 已排除账号（$($excludedKinds -join '/')，不进入推荐）"
+    foreach ($r in $excludedRows) {
+        $sb += "- $($r.Label) [$($r.StatusKind)] 武将分 $($r.Score)"
+    }
 }
 $sb += ''
 $sb += '## 核心觉醒武将明细'

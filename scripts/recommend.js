@@ -1,84 +1,140 @@
 // ============================================================
 // recommend.js — 一键生成最终购买建议(自动, 减少手动分析)
 // 流程:
-//   1. 读 accounts-final.json + 跑 land-stats(完整/只缺宝/缺战法)
-//   2. 综合排序: 完整队数优先 → 只缺宝 → 可组 → 评分 → 价格
-//   3. 生成 docs/最终购买建议-{日期}.md
+//   1. 读 accounts-final.json，进程内用 plan5-core.landStatusList 算完整/只缺宝/缺战法
+//      （不再 execSync 子进程；land-stats.js 仍保留给其它消费方/文档引用）
+//   2. 过滤 l0_data.excludeFromRecommend 状态（默认 sold/delisted），按 ordersn 去重
+//   3. 综合排序: 完整队数优先 → 只缺宝 → 可组 → 评分 → 价格
+//   4. 生成 docs/最终购买建议-{日期}.md
 // 用法:
-//   node scripts/recommend.js [dataFile] [priceMin] [priceMax]
+//   node scripts/recommend.js [dataFile] [priceMin] [priceMax] [--out <file>]
 //   例: node scripts/recommend.js data/accounts-final.json 1500 2000
-// 前置: 先跑 find-all.ps1 或已有 accounts-final.json
+//   前置: 先跑 find-all.ps1 或已有 accounts-final.json
 // ============================================================
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 const core = require('./plan5-core.js');
+const cfg = require('./lib-config.js');
+const runmeta = require('./lib-runmeta.js');
 const ROOT = path.resolve(__dirname, '..');
-const DATA_FILE = process.argv[2] || path.join(ROOT, 'data', 'accounts-final.json');
-const PRICE_MIN = parseInt(process.argv[3] || '1500', 10);
-const PRICE_MAX = parseInt(process.argv[4] || '2000', 10);
+
+// ---- 参数解析: 位置参数 [dataFile] [priceMin] [priceMax]，另支持 --out <file> ----
+const positional = [];
+let OUT_ARG = '';
+for (let i = 2; i < process.argv.length; i++) {
+  const a = process.argv[i];
+  if (a === '--out') { OUT_ARG = process.argv[++i] || ''; continue; }
+  if (a.startsWith('--out=')) { OUT_ARG = a.slice('--out='.length); continue; }
+  if (a === '--help' || a === '-h') {
+    console.log('usage: node scripts/recommend.js [dataFile] [priceMin] [priceMax] [--out <file>]');
+    process.exit(0);
+  }
+  if (a.startsWith('-')) { console.error(`[recommend] 未知参数: ${a}`); process.exit(1); }
+  positional.push(a);
+}
+const DATA_FILE = positional[0] || path.join(ROOT, 'data', 'accounts-final.json');
+const PRICE_MIN = parseInt(positional[1] || '1500', 10);
+const PRICE_MAX = parseInt(positional[2] || '2000', 10);
+
+const L0 = cfg.getL0();
+const EXCLUDE = new Set(Array.isArray(L0.excludeFromRecommend) ? L0.excludeFromRecommend : []);
+const run = runmeta.beginRun('recommend', { data: DATA_FILE, priceMin: PRICE_MIN, priceMax: PRICE_MAX, out: OUT_ARG || null, exclude: [...EXCLUDE] });
+cfg.logEffective('[recommend]');
+
 const teams = core.initTeams();
 
-// ---- 1. 跑 land-stats 输出 JSON ----
-const STATS_FILE = path.join(ROOT, 'data', 'tmp', 'land-stats.json');
-try {
-  execSync(`node scripts/land-stats.js "${DATA_FILE}" "" "" "${STATS_FILE}"`, { cwd: ROOT, shell: 'cmd', stdio: 'pipe' });
-} catch (e) { console.error('land-stats 失败:', e.message); process.exit(1); }
-const stats = JSON.parse(fs.readFileSync(STATS_FILE, 'utf-8'));
-
-// ---- 2. 读 final + 分数 ----
-const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-const byKey = {};
-for (const acc of data) {
-  if (!acc.overview) continue;
-  // 兼容价格字符串(1,900)与数字(1900)两种 key
-  const k1 = `${acc.list.server}-${acc.overview.price}`;
-  const k2 = `${acc.list.server}-${String(acc.overview.price).replace(/,/g, '')}`;
-  if (!byKey[k1]) byKey[k1] = acc;
-  if (!byKey[k2]) byKey[k2] = acc;
+// --- 账号唯一身份: ordersn 优先，旧数据回退 server-price ---
+function ordersnOf(acc) {
+  if (acc.list && acc.list.ordersn) return String(acc.list.ordersn);
+  const tail = String((acc.overview && acc.overview.url) || '').split('?')[0].replace(/\/+$/, '').split('/').pop();
+  return /^\d{8,}-/.test(tail) ? tail : '';
 }
-// 读 analyze 分数
-const analyzeFile = path.join(ROOT, 'data', 'tmp', 'analyze-latest.txt');
+function orderKey(acc) {
+  const sn = ordersnOf(acc);
+  if (sn) return 'sn:' + sn;
+  return `sp:${acc.list && acc.list.server}-${acc.overview && acc.overview.price}`;
+}
+// 状态归一化: 优先已有 statusKind，否则现场分类
+function statusKindOf(acc) {
+  if (acc.statusKind) return acc.statusKind;
+  const ov = acc.overview || {};
+  return cfg.classifyStatus(ov.status);
+}
+
+// ---- 1. 读数据 + 读 analyze 分数 ----
+let data = [];
+try { data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')); }
+catch (e) { console.error('[recommend] 读取数据失败:', e.message); runmeta.failRun(run, e); process.exit(1); }
+if (!Array.isArray(data)) { console.error('[recommend] 数据格式错误: 期望数组'); runmeta.failRun(run, new Error('data is not array')); process.exit(1); }
+
 const scores = {};
 try {
-  const txt = fs.readFileSync(analyzeFile, 'utf-8');
+  const txt = fs.readFileSync(path.join(ROOT, 'data', 'tmp', 'analyze-latest.txt'), 'utf-8');
   const re = /(X\d{4}) ￥([\d,]+)\s+[\d,]+\s+(\d+)\s/g;
   let m;
   while ((m = re.exec(txt)) !== null) {
     scores[`${m[1]}-${m[2].replace(/,/g, '')}`] = +m[3];
   }
-} catch (e) {}
+} catch (e) { /* 分数文件缺失时 score=0，不阻断（旧行为） */ }
 
-// ---- 3. 综合排序 ----
+// ---- 2. 逐账号算落地 + 过滤 ----
 const rows = [];
-for (const s of stats) {
-  const price = parseInt(s.price.replace(/,/g, ''), 10);
-  if (price < PRICE_MIN || price > PRICE_MAX) continue;
-  const acc = byKey[`${s.server}-${s.price}`];
+const seen = new Set();
+let dupCount = 0;
+let excludedCount = 0;
+let noOverview = 0;
+const sourceCounts = {};
+const statusCounts = {};
+for (const acc of data) {
+  if (!acc.overview || !acc.list) { noOverview++; continue; }
+  const k = orderKey(acc);
+  if (seen.has(k)) { dupCount++; continue; }
+  seen.add(k);
+  const price = parseInt(String(acc.overview.price).replace(/,/g, ''), 10);
+  if (!Number.isFinite(price) || price < PRICE_MIN || price > PRICE_MAX) continue;
+  const statusKind = statusKindOf(acc);
+  statusCounts[statusKind] = (statusCounts[statusKind] || 0) + 1;
+  if (EXCLUDE.has(statusKind)) { excludedCount++; continue; }
+  const source = acc.source || 'unknown';
+  sourceCounts[source] = (sourceCounts[source] || 0) + 1;
+  const { full, onlyGear, missTac } = core.landStatusList(acc, teams);
+  const server = acc.list.server;
+  const priceNoComma = String(price);
   rows.push({
-    server: s.server, price, url: s.url,
-    full: s.full.length, onlyGear: s.onlyGear.length,
-    candCount: s.full.length + s.onlyGear.length + s.missTacCount,
-    score: scores[`${s.server}-${String(price)}`] || 0,
-    fullTeams: s.full.map(x => `${x.team}(${x.tier})`).join('、'),
-    onlyGearTeams: s.onlyGear.map(x => `${x.team}(${x.tier})缺${x.eMiss}`).join('、'),
-    heroCount: acc ? acc.heroCount : 0,
-    tacCount: acc ? (acc.tactics || []).length : 0,
-    gearCount: acc ? (acc.equips || []).length : 0
+    server, price, url: String(acc.overview.url || '').replace(/\?.*$/, ''),
+    ordersn: ordersnOf(acc), statusKind,
+    full: full.length, onlyGear: onlyGear.length,
+    candCount: full.length + onlyGear.length + missTac.length,
+    score: scores[`${server}-${priceNoComma}`] || 0,
+    fullTeams: full.map(x => `${x.team}(${x.tier})`).join('、'),
+    onlyGearTeams: onlyGear.map(x => `${x.team}(${x.tier})缺${x.eMiss}`).join('、'),
+    heroCount: acc.heroCount || (acc.heroes || []).length,
+    tacCount: (acc.tactics || []).length,
+    gearCount: (acc.equips || []).length,
+    acc
   });
 }
 rows.sort((a, b) =>
   (b.full * 1000 + b.onlyGear * 100 + b.candCount) - (a.full * 1000 + a.onlyGear * 100 + a.candCount)
 );
 
-// ---- 4. 生成 Markdown ----
+// 数据快照时间(取所有账号 capturedAt 最大/最小值)
+const caps = data.map(a => a && a.capturedAt).filter(s => s && !isNaN(Date.parse(s))).sort();
+const snapLine = caps.length
+  ? `> 数据快照: ${caps[0].slice(0, 10)} ~ ${caps[caps.length - 1].slice(0, 10)} | 来源分布: ${Object.entries(sourceCounts).map(([k, v]) => `${k} ${v}`).join(' / ') || '-'} | 状态分布: ${Object.entries(statusCounts).map(([k, v]) => `${k} ${v}`).join(' / ') || '-'}`
+  : '> 数据快照: 旧数据无 capturedAt 字段 | 来源分布: unknown';
+
+// ---- 3. 生成 Markdown ----
 const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 const sb = [];
 sb.push(`# 最终购买建议 - ${date}(自动生成)`);
 sb.push('');
-sb.push(`> 基于 **${stats.length} 个账号**(${PRICE_MIN}-${PRICE_MAX} 档)自动评估`);
-sb.push('> 排序: 完整队数 → 只缺宝队数 → 可组总数 → 武将分');
+sb.push(`> 基于 **${rows.length} 个账号**(${PRICE_MIN}-${PRICE_MAX} 档)自动评估`);
+sb.push(`> 已排除 **${excludedCount} 个**非可购状态账号(l0_data.excludeFromRecommend=${[...EXCLUDE].join(',') || '空'})${dupCount ? `，合并重复 ordersn ${dupCount} 条` : ''}`);
+sb.push(snapLine);
+sb.push(`> config 指纹: ${cfg.configFingerprint()} | 排序: 完整队数 → 只缺宝队数 → 可组总数 → 武将分`);
 sb.push('> 版本硬校验: 曹操=魏 / 关羽=蜀 / 赵云=SP / 汉荀彧=汉 等');
+if (rows.length === 0) sb.push('> ⚠️ 无满足条件的账号：请检查数据/价格档/状态过滤。');
 sb.push('');
 sb.push('---');
 sb.push('');
@@ -98,11 +154,11 @@ for (const r of rows.slice(0, 20)) {
   sb.push(`### ${r.server} ¥${r.price}(完整${r.full} 只缺宝${r.onlyGear} 可组${r.candCount} 分${r.score})`);
   sb.push('');
   sb.push(`- 🔗 ${r.url}`);
-  sb.push(`- 武将 ${r.heroCount} / 战法 ${r.tacCount} / 宝 ${r.gearCount}`);
+  sb.push(`- 武将 ${r.heroCount} / 战法 ${r.tacCount} / 宝 ${r.gearCount} | ordersn ${r.ordersn || '-'} | 状态 ${r.statusKind}`);
   if (r.fullTeams) sb.push(`- ✅ 完整队: ${r.fullTeams}`);
   if (r.onlyGearTeams) sb.push(`- 🟡 只缺宝: ${r.onlyGearTeams}`);
   // ---- 5 队规划表(每队标注缺口) ----
-  const acc = byKey[`${r.server}-${r.price}`] || byKey[`${r.server}-${String(r.price)}`];
+  const acc = r.acc;
   if (acc) {
     const plan = core.planAccount(acc, teams);
     if (plan && plan.res && plan.res.best && plan.res.best.length) {
@@ -127,7 +183,15 @@ for (const r of rows.slice(0, 20)) {
 sb.push('---');
 sb.push('');
 sb.push('> 下单前建议对 Top 3 候选浏览器复核(确认版本武将)');
-const OUT = path.join(ROOT, 'docs', `最终购买建议-${date}-自动.md`);
+const OUT = OUT_ARG ? path.resolve(OUT_ARG) : path.join(ROOT, 'docs', `最终购买建议-${date}-自动.md`);
+fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, sb.join('\n'), 'utf-8');
+const counts = {
+  accounts: data.length, rows: rows.length, excludedByStatus: excludedCount,
+  dupOrdersn: dupCount, noOverview,
+  sources: sourceCounts, statusKinds: statusCounts
+};
+runmeta.finishRun(run, counts);
 console.log('已生成:', OUT);
-console.log('Top 3:', rows.slice(0, 3).map(r => `${r.server} ¥${r.price}(完整${r.full} 只缺宝${r.onlyGear})`).join(' | '));
+console.log(`基于 ${rows.length} 个账号(排除 ${excludedCount} 个非可购状态${dupCount ? `，重复 ordersn ${dupCount}` : ''})`);
+console.log('Top 3:', rows.slice(0, 3).map(r => `${r.server} ¥${r.price}(完整${r.full} 只缺宝${r.onlyGear})`).join(' | ') || '-');

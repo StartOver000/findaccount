@@ -5,12 +5,13 @@
 //         → result[] 含 game_ordersn/server_name/price/desc_sumup_short
 //         desc_sumup_short 形如 "118张五星武将卡 23个S级战法 14个稀世宝物"
 //         ⚠️ 已验证: desc 的五星数 == 详情 quality=5 数量(36/36 完全一致)
-//         → 列表阶段即可用 desc 初筛(五星>=85 且 宝物>=12), 无效号不采详情
+//         → 列表阶段即可用 desc 初筛(五星/S战法/稀世宝物/锻造, 参数见 data/strategy-config.json)
 //   详情: POST /cgi/api/get_equip_detail (serverid=1&ordersn=xxx)
 //         → equip.equip_desc(JSON字符串) 内含 card[](武将) skill[](战法) gear[](宝物)
 //         ⚠️ quality 字段才是真实星级(quality===5 五星, quality=4 四星)
 // 设计(v4, 用户确认方向: 全量 + 正确优先 + 登录停下提醒):
-//   - 默认全量采集: 列表里所有 五星>=85 且 宝>=12 的号都采详情(不跳过)
+//   - 默认全量采集: 列表里所有通过 L2 门槛的号都采详情(不跳过)
+//   - 详情前按预筛分排序(scripts/prefilter.js): 预测战力高的先采, 预算有限时优先保候选
 //   - 慢速串行: 详情每号间隔 3-4 秒, 列表翻页 800ms → 不会触发账号级限流
 //   - 登录/验证失效: 停下打印提醒, 等用户完成手机验证后按回车继续
 //   - 连续失败 >=3: 自动长退避 60-120 秒(疑似限流)
@@ -18,13 +19,19 @@
 // 用法:
 //   node scripts/api-collect.js [OUT.json] [priceMin] [priceMax] [browser-detail.json] [topN]
 //     browser-detail.json: 可选, 传了则只采「浏览器没有的号」(补漏模式)
-//     topN: 可选数字, 只采 desc 五星数最高的前 N 个号(精选模式)
+//     topN: 可选数字, 只采预筛分最高的前 N 个号(精选模式, 防限流)
+//   env STZB_LOGIN_WAIT_MS: 登录/验证人工等待超时(毫秒, 默认 120000, 0=不限时)
 //   前置: 首次需在打开的浏览器窗口登录并完成手机验证
+// 阈值来源: data/strategy-config.json（经 lib-config.js），脚本内不写死门槛值
 // ============================================================
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const cfg = require('./lib-config.js');
+const runmeta = require('./lib-runmeta.js');
+const { loadL2, passListFilter } = require('./list-filter.js');
+const { sortByPrefilter, scoreAccount } = require('./prefilter.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const PROFILE = path.join(ROOT, '.cbg-profile');
@@ -34,16 +41,63 @@ const PRICE_MAX = process.argv[4] || '250000';
 const BROWSER_FILE = process.argv[5] || '';
 const TOPN = process.argv[6] ? parseInt(process.argv[6], 10) : 0;
 
-const SERVERIDS = '44748,44749,44750,44751,44752,44753,44754,44755,44761,44762,44763,44764,44765,44766,44773,44774,44775,44776,44777,44778,44779,44788,44789,44790,44791,44792,44793,44794,44804,44805,44808,44809,44810,44811,44812,44819,44820,44821,44822,44823,44824,44834,44835,44836,44837,44838,44839,44840,44841,44854,44855,44856,44857,44858,44859,44860,44861,44862,44863,44869,44870,44871,44872,44873,44874';
-const LIST_URL = `https://stzb.cbg.163.com/cgi/mweb/pl?search_type=role&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=${SERVERIDS}&price_min=${PRICE_MIN}&price_max=${PRICE_MAX}&five_star_hero_count=85&duanzao_gear_cnt=12`;
+// 登录/验证人工等待超时(毫秒): 默认 120 秒, 超时明确报错 exit 1，避免无人值守时永久挂起
+const LOGIN_WAIT_MS = Number(process.env.STZB_LOGIN_WAIT_MS || 120000);
+if (!Number.isFinite(LOGIN_WAIT_MS) || LOGIN_WAIT_MS < 0) {
+  console.error(`[api-collect] 无效的 STZB_LOGIN_WAIT_MS=${process.env.STZB_LOGIN_WAIT_MS}（需要 >=0 的毫秒数）`);
+  process.exit(1);
+}
+
+// ---- L2 列表初筛参数（来自 data/strategy-config.json, 见 2026-10-25 策略落地） ----
+// FUNNEL_CONTROL=1 时为对照实验模式: 采样区间读 l2_list_filter.controlMode（默认 70 星 / 5 锻造）
+const L2 = loadL2();
+const CONTROL = L2.control;
+const FIVESTAR = CONTROL ? L2.controlMode.fiveStarLow : L2.fiveStarMin;
+const DUANZAO = CONTROL ? L2.controlMode.gearLow : L2.forgedGearMin;
+cfg.logEffective('[api-collect]');
+const run = runmeta.beginRun('api-collect', {
+  out: OUT, priceMin: PRICE_MIN, priceMax: PRICE_MAX,
+  browserFile: BROWSER_FILE || null, topN: TOPN, control: CONTROL,
+  loginWaitMs: LOGIN_WAIT_MS
+});
+
+// 试师区服: 统一从 scripts/lib-shishi.js 读取「当前开放试师」serverid（data/shishi-open.json，
+// 由 scripts/update-shishi.js 随赛季滚动更新；文件缺失时内部回退旧硬编码并提示）
+const { getServerIds } = require('./lib-shishi');
+const { ids: SERVERIDS, source: SERVERIDS_SRC } = getServerIds();
+console.log(`[servers] ${SERVERIDS_SRC}`);
+const LIST_URL = `https://stzb.cbg.163.com/cgi/mweb/pl?search_type=role&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=${SERVERIDS}&price_min=${PRICE_MIN}&price_max=${PRICE_MAX}&five_star_hero_count=${FIVESTAR}&duanzao_gear_cnt=${DUANZAO}`;
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // 等待用户按回车(用于登录/验证时停下等用户处理)
+// 超时（STZB_LOGIN_WAIT_MS，默认 120 秒）后 reject，由 main 的 catch 打印清楚原因并 exit 1
 function waitForEnter(prompt) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(`\n${prompt}\n完成后按回车继续 (或 Ctrl+C 退出): `, () => { rl.close(); resolve(); });
+    let settled = false;
+    let timer = null;
+    if (LOGIN_WAIT_MS > 0) {
+      timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        rl.close();
+        const err = new Error(
+          `等待人工完成登录/验证超时：${LOGIN_WAIT_MS}ms 内未按回车。` +
+          `请先在浏览器窗口完成登录/手机验证后重跑（env STZB_LOGIN_WAIT_MS 可调大，0=不限时）。` +
+          `触发场景: ${String(prompt).replace(/\n/g, ' ')}`
+        );
+        err.code = 'LOGIN_TIMEOUT';
+        reject(err);
+      }, LOGIN_WAIT_MS);
+    }
+    rl.question(`\n${prompt}\n完成后按回车继续 (或 Ctrl+C 退出; ${LOGIN_WAIT_MS > 0 ? `${Math.round(LOGIN_WAIT_MS / 1000)} 秒超时` : '不限时'}): `, () => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      rl.close();
+      resolve();
+    });
   });
 }
 
@@ -53,7 +107,7 @@ function needLogin(msg) {
   return s.includes('更新登陆状态') || s.includes('需要验证手机') || s.includes('登录');
 }
 
-// 从 desc_sumup_short 解析 五星数/宝物数, 返回 null 表示解析失败
+// 从 desc_sumup_short 解析 五星数/宝物数（历史函数，初筛已统一走 list-filter.passListFilter）
 function parseDesc(sumup) {
   const s = String(sumup || '');
   const m5 = s.match(/(\d+)张五星武将卡/);
@@ -62,7 +116,7 @@ function parseDesc(sumup) {
   return { star5: m5 ? parseInt(m5[1], 10) : 0, gear: m12 ? parseInt(m12[1], 10) : 0 };
 }
 
-// 从 equip_desc 构造统一结果
+// 从 equip_desc 构造统一结果（含数据溯源: source/capturedAt/statusKind）
 function buildResult(d) {
   const desc = d.desc || {};
   const heroes = (desc.card || []).map(x => ({
@@ -78,7 +132,10 @@ function buildResult(d) {
     heroCount: heroes.length,
     heroes,
     tactics: (desc.skill || []).map(x => x.name).filter(Boolean),
-    equips: (desc.gear || []).map(x => x.name).filter(Boolean)
+    equips: (desc.gear || []).map(x => x.name).filter(Boolean),
+    source: 'api',
+    capturedAt: new Date().toISOString(),
+    statusKind: cfg.classifyStatus(d.status)
   };
 }
 
@@ -120,11 +177,11 @@ async function main() {
   let cards = [];
   for (let attempt = 1; attempt <= 3 && cards.length === 0; attempt++) {
     if (attempt > 1) { console.log('list retry', attempt, '...'); await sleep(3000 * attempt); }
-    const listResult = await page.evaluate(([sid, pmin, pmax]) => {
+    const listResult = await page.evaluate(([sid, pmin, pmax, fiveStar, duanzao]) => {
       return (async () => {
         const out = { cards: [], msg: '' };
         for (let p = 1; p <= 20; p++) {
-          const body = `search_type=role&count=15&view_loc=search_cond&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=${encodeURIComponent(sid)}&price_min=${pmin}&price_max=${pmax}&five_star_hero_count=85&duanzao_gear_cnt=12&order_by=&page=${p}&exter=direct`;
+          const body = `search_type=role&count=15&view_loc=search_cond&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=${encodeURIComponent(sid)}&price_min=${pmin}&price_max=${pmax}&five_star_hero_count=${fiveStar}&duanzao_gear_cnt=${duanzao}&order_by=&page=${p}&exter=direct`;
           const res = await fetch('/cgi-bin/recommend.py?client_type=h5&act=recommd_by_role', {
             method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body, credentials: 'include'
           });
@@ -138,7 +195,7 @@ async function main() {
         }
         return out;
       })();
-    }, [SERVERIDS, PRICE_MIN, PRICE_MAX]);
+    }, [SERVERIDS, PRICE_MIN, PRICE_MAX, FIVESTAR, DUANZAO]);
     cards = listResult.cards || [];
     // 登录/验证失效 → 停下等用户处理
     if (cards.length === 0 && needLogin(listResult.msg)) {
@@ -166,24 +223,27 @@ async function main() {
     } catch (e) { console.log('browser-file 解析失败, 采全部'); }
   }
 
-  // desc 初筛: 只有 五星>=85 且 宝>=12 且 (浏览器没有的号) 才采详情
+  // L2 初筛（data/strategy-config.json）：五星 / S战法 / 稀世宝物 / 锻造 四道门
+  // 2026-10-25 起不再写死 85/12，改为配置驱动；详情前再用预筛分排序（见 prefilter.js）
   let pass = 0, skip = 0, resumed = 0, brSkip = 0;
+  const skipByReason = { 'no-desc': 0, star5: 0, sTac: 0, gear: 0 };
   const todo = [];
   for (const c of cards) {
     if (done.has(c.ordersn)) { resumed++; continue; }
     if (browserSns.has(c.ordersn)) { brSkip++; continue; }
-    const d = parseDesc(c.sumup);
-    if (!d || d.star5 < 85 || d.gear < 12) { skip++; continue; }
+    const pf = passListFilter(c, L2);
+    if (!pf.pass) { skip++; if (skipByReason[pf.reason] != null) skipByReason[pf.reason]++; continue; }
+    const d = pf.desc;
     pass++;
-    todo.push({ ...c, star5: d.star5, gear: d.gear });
+    todo.push({ ...c, star5: d.star5, sTac: d.sTac, st: d.sTac, gear: d.gear });
   }
-  // TopN 精选: 只采 desc 五星数最高的前 N 个(防限流)
+  // 预筛分排序: 详情预算有限时先采「最可能成队」的号，而不是五星最多的号
+  sortByPrefilter(todo);
   if (TOPN > 0 && todo.length > TOPN) {
-    todo.sort((a, b) => b.star5 - a.star5 || b.gear - a.gear);
-    console.log(`topN 精选: 只采五星数前 ${TOPN} 个 (共 ${todo.length} 个可采)`);
+    console.log(`topN 精选: 按预筛分只采前 ${TOPN} 个 (共 ${todo.length} 个可采, 预筛分最高 ${scoreAccount(todo[0]).score})`);
     todo.length = TOPN;
   }
-  console.log(`filter: need-fetch ${todo.length} | browser-skip ${brSkip} | desc-skip ${skip} | resumed ${resumed}`);
+  console.log(`filter(L2 ${CONTROL ? 'CONTROL' : JSON.stringify({ star5: FIVESTAR, sTac: L2.sTacticMin, duanzao: DUANZAO })}): need-fetch ${todo.length} | browser-skip ${brSkip} | desc-skip ${skip} (no-desc ${skipByReason['no-desc']}, star5 ${skipByReason.star5}, sTac ${skipByReason.sTac}, gear ${skipByReason.gear}) | resumed ${resumed}`);
 
   // ---- 2. 详情(慢速单采 + 限流长退避 + 登录停下提醒) ----
   // 教训: 批量并发(>3) 或 密集请求 会触发藏宝阁账号级限流(eb-re410),
@@ -236,6 +296,27 @@ async function main() {
   fs.writeFileSync(OUT, JSON.stringify(results, null, 1), 'utf-8');
   console.log('\ndone, saved', OUT, 'total', results.length, '| detail-fail:', failCount);
   await context.close();
+  return {
+    list: cards.length,
+    needFetch: todo.length,
+    browserSkip: brSkip,
+    descSkip: skip,
+    descSkipByReason: skipByReason,
+    resumed,
+    detailFail: failCount,
+    results: results.length,
+    control: CONTROL
+  };
 }
 
-main().catch(e => { console.error('FATAL:', e); process.exit(1); });
+main()
+  .then(counts => { runmeta.finishRun(run, counts); })
+  .catch(e => {
+    runmeta.failRun(run, e);
+    if (e && e.code === 'LOGIN_TIMEOUT') {
+      console.error('[api-collect][login] ' + e.message);
+    } else {
+      console.error('FATAL:', e);
+    }
+    process.exit(1);
+  });

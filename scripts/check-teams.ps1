@@ -2,6 +2,11 @@
 # 用法: powershell -File check-teams.ps1 [-DataFile xxx.json]
 param([string]$DataFile = (Join-Path (Split-Path $PSScriptRoot -Parent) 'data\accounts-final.json'))
 
+# 配置单源：data/strategy-config.json（与 analyze-accounts.ps1 / Node 侧共用）
+. "$PSScriptRoot\lib-config.ps1"
+$L3 = Get-StzbL3
+Write-StzbEffective -Prefix '[check-teams]'
+
 $rank = Get-Content -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'docs\队伍强度排行榜.md') -Encoding UTF8
 $tacticMap = @{
     '合纵'=@('合纵连横'); '避锐'=@('避锐治气'); '百战'=@('百战无怯','百战精兵'); '愈战'=@('愈战愈勇')
@@ -47,6 +52,17 @@ $versionReq = @{
     '吕吕' = '群'; '孙权' = '吴'; '董卓' = '群'; '姜维' = '蜀'
 }
 
+# 配置覆盖：l3_scoring.versionOverrides 追加/覆盖版本硬规则（如 司马懿 → 晋）
+foreach ($p in $L3.versionOverrides.PSObject.Properties) { $versionReq[$p.Name] = [string]$p.Value }
+# 配置：l3_scoring.skipHeroes —— 含这些武将的榜单队伍整队跳过（原硬编码 弓诸葛/司马懿）
+$skipHeroSet = @{}
+foreach ($h in @($L3.skipHeroes)) { if ($h) { $skipHeroSet[[string]$h] = $true } }
+# 档位排序来自 l3_scoring.tierWeight 的属性顺序
+$tierOrder = @{}
+$tierIdx = 0
+foreach ($p in (Get-StzbTierWeight).PSObject.Properties) { $tierOrder[$p.Name] = $tierIdx; $tierIdx++ }
+Write-Host "版本硬规则: $($versionReq.Count) 项（配置覆盖 $(@($L3.versionOverrides.PSObject.Properties).Count) 项）| 跳过武将: $(@($L3.skipHeroes) -join ',')"
+
 # 解析榜单队伍
 $tier = ''; $cur = $null; $heroes = @(); $teams = @(); $t1list = @(); $t2list = @(); $eql = @()
 # 速览是权威名单: 详细章节里已移档/过时的旧队伍一律跳过
@@ -79,7 +95,11 @@ foreach ($line in $rank) {
         }
     }
 }
-$skipTeams = @($teams | Where-Object { $_.Heroes -contains '弓诸葛' -or $_.Heroes -contains '司马懿' } | ForEach-Object { $_.Team })
+$skipTeams = @($teams | Where-Object {
+    $hit = $false
+    foreach ($th in $_.Heroes) { if ($skipHeroSet.ContainsKey([string]$th)) { $hit = $true; break } }
+    $hit
+} | ForEach-Object { $_.Team })
 
 $data = Get-Content -LiteralPath $DataFile -Raw -Encoding UTF8 | ConvertFrom-Json
 foreach ($acc in $data) {
@@ -123,7 +143,7 @@ foreach ($acc in $data) {
         else { $st = '缺战法+宝' }
         $rows += [pscustomobject]@{ 队伍=$team.Team; 档=$team.Tier; 状态=$st; 战法="$tHit/$needTCount"; 缺战法=($tMiss -join '/'); 宝="$eHit/$needECount"; 缺宝=($eMiss -join '/') }
     }
-    $rows = @($rows | Sort-Object @{Expression={ if($_.档 -eq 'T0+'){0}elseif($_.档 -eq 'T0'){1}elseif($_.档 -eq 'T1'){2}else{3} } })
+    $rows = @($rows | Sort-Object @{Expression={ if ($tierOrder.ContainsKey([string]$_.档)) { $tierOrder[[string]$_.档] } else { 999 } } })
     $listSrv = ''
     if ($acc.list -and $acc.list.server) { $listSrv = $acc.list.server } else { $listSrv = $ov.server }
     "`n===== $listSrv ¥$($ov.price) 队伍落地 ====="

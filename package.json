@@ -4,8 +4,18 @@
   "private": true,
   "description": "率土之滨藏宝阁账号批量采集与评估",
   "scripts": {
-    "extract": "node cbg-detail-extract.js",
-    "analyze": "powershell -ExecutionPolicy Bypass -File analyze-accounts.ps1"
+    "extract": "node scripts/cbg-detail-extract.js",
+    "analyze": "powershell -ExecutionPolicy Bypass -File scripts/analyze-accounts.ps1",
+    "report": "node scripts/report.js",
+    "shishi": "node scripts/update-shishi.js",
+    "shishi:check": "node scripts/update-shishi.js --check",
+    "shishi:force-api": "node scripts/update-shishi.js --force-api --check --allow-stale",
+    "strategy": "node scripts/strategy-eval.js",
+    "filter-strategy": "node scripts/filter-strategy.js",
+    "diff": "node scripts/snapshot-diff.js",
+    "test": "node scripts/verify-shishi.js && node scripts/verify-core.js",
+    "verify:live": "node scripts/verify-shishi.js --live",
+    "find": "powershell -ExecutionPolicy Bypass -File scripts/find-all.ps1"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

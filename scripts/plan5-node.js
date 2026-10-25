@@ -14,6 +14,19 @@ const DATA_FILE = process.argv[2] || path.join(ROOT, 'data', 'accounts-final.jso
 const OUT_FILE = process.argv[3] || '';
 const outLines = [];   // 收集输出行
 
+// 账号唯一身份：ordersn 优先（URL 末段或 list.ordersn），旧数据回退 server-price。
+// 旧实现按 server-price 去重会把同服同价的不同号（186 号里 23 个）丢掉。
+function ordersnOf(acc) {
+  if (acc.list && acc.list.ordersn) return String(acc.list.ordersn);
+  const tail = String((acc.overview && acc.overview.url) || '').split('?')[0].replace(/\/+$/, '').split('/').pop();
+  return /^\d{8,}-/.test(tail) ? tail : '';
+}
+function orderKey(acc) {
+  const sn = ordersnOf(acc);
+  if (sn) return 'sn:' + sn;
+  return `sp:${acc.list && acc.list.server}-${acc.overview && acc.overview.price}`;
+}
+
 // ---- 主流程 ----
 function main() {
   const teams = initTeams();
@@ -22,7 +35,7 @@ function main() {
   const seenAcc = new Set();
   for (const acc of data) {
     if (!acc.overview) continue;
-    const k = `${acc.list.server}-${acc.overview.price}`;
+    const k = orderKey(acc);
     if (seenAcc.has(k)) continue;
     seenAcc.add(k);
     const listSrv = acc.list.server, price = acc.overview.price;

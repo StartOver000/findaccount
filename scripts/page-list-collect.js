@@ -9,17 +9,28 @@
 // 用法:
 //   node scripts/page-list-collect.js [OUT.json]
 //   前置: .cbg-profile 已登录且列表页筛选已就绪(或用参数URL)
+// 阈值来源: data/strategy-config.json（经 lib-config.js），不在 URL 里写死价格档/85/12
+// 去重口径: ordersn 优先（卡片链接含 equip/1/<ordersn>），旧/缺链接时才回退 server-price
 // ============================================================
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const cfg = require('./lib-config.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const PROFILE = path.join(ROOT, '.cbg-profile');
 const OUT = process.argv[2] || path.join(ROOT, 'data', 'accounts-list-dom.json');
 
-const SERVERIDS = '44748,44749,44750,44751,44752,44753,44754,44755,44761,44762,44763,44764,44765,44766,44773,44774,44775,44776,44777,44778,44779,44788,44789,44790,44791,44792,44793,44794,44804,44805,44808,44809,44810,44811,44812,44819,44820,44821,44822,44823,44824,44834,44835,44836,44837,44838,44839,44840,44841,44854,44855,44856,44857,44858,44859,44860,44861,44862,44863,44869,44870,44871,44872,44873,44874';
-const LIST_URL = `https://stzb.cbg.163.com/cgi/mweb/pl?search_type=role&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=${SERVERIDS}&price_min=150000&price_max=250000&five_star_hero_count=85&duanzao_gear_cnt=12`;
+// 试师区服: 统一从 scripts/lib-shishi.js 读取（data/shishi-open.json，update-shishi.js 生成）
+const { getServerIds } = require('./lib-shishi');
+const SERVERIDS = getServerIds().ids;
+const L1 = cfg.getL1();
+const POOL_PRICE = L1.priceRange;
+const FIVE_STAR_MIN = L1.bargainLine.fiveStarMin;
+const FORGED_GEAR_MIN = L1.bargainLine.forgedGearMin;
+const LIST_URL = `https://stzb.cbg.163.com/cgi/mweb/pl?search_type=role&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=${SERVERIDS}&price_min=${POOL_PRICE[0] * 100}&price_max=${POOL_PRICE[1] * 100}&five_star_hero_count=${FIVE_STAR_MIN}&duanzao_gear_cnt=${FORGED_GEAR_MIN}`;
+cfg.logEffective('[page-list]');
+console.log(`[page-list] 价格档 ¥${POOL_PRICE[0]}-${POOL_PRICE[1]} | 五星≥${FIVE_STAR_MIN} | 锻造≥${FORGED_GEAR_MIN} | config ${cfg.configFingerprint()}`);
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -58,8 +69,8 @@ function extractCards() {
     const link = card.querySelector('a[href*="equip/"]');
     let ordersn = '';
     if (link) { const h = link.href; const mm = h.match(/equip\/1\/([A-Z0-9]+)/); if (mm) ordersn = mm[1]; }
-    // 去重(同一张卡可能被多次找到)
-    const key = server + '-' + price;
+    // 去重(同一张卡可能被多次找到): ordersn 优先，缺链接时回退 server-price
+    const key = ordersn ? 'sn:' + ordersn : server + '-' + price;
     if (cards.some(c => c.key === key)) continue;
     cards.push({ key, server, price, star5, sTac, gear, limited, forged, skin, ordersn, heroes, sumup: `${star5}张五星武将卡 ${sTac}个S级战法 ${gear}个稀世宝物` });
   }
@@ -86,16 +97,22 @@ async function main() {
   const results = [...all.values()];
   console.log('采集到:', results.length, '个账号');
 
-  // 保存(精简格式)
+  // 保存(精简格式，含数据溯源字段)
+  const capturedAt = new Date().toISOString();
   const out = results.map(r => ({
     list: { server: r.server, price: r.price ? parseInt(r.price.replace(/,/g, ''), 10) : 0, ordersn: r.ordersn, sumup: r.sumup },
     overview: { url: r.ordersn ? `https://stzb.cbg.163.com/cgi/mweb/equip/1/${r.ordersn}` : '', server: r.server, price: r.price },
     heroCount: r.heroes.length,
     heroes: r.heroes,
-    listMeta: { star5: r.star5, sTac: r.sTac, gear: r.gear, limited: r.limited, forged: r.forged, skin: r.skin }
+    listMeta: { star5: r.star5, sTac: r.sTac, gear: r.gear, limited: r.limited, forged: r.forged, skin: r.skin },
+    source: 'browser',
+    capturedAt,
+    statusKind: cfg.classifyStatus('')
   }));
+  const noOrdersn = results.filter(r => !r.ordersn).length;
+  if (noOrdersn) console.warn(`[page-list] 警告: ${noOrdersn} 个卡片未提取到 ordersn，将无法按 ordersn 去重/续采`);
   fs.writeFileSync(OUT, JSON.stringify(out, null, 1), 'utf-8');
-  console.log('已保存:', OUT);
+  console.log('已保存:', OUT, '| ordersn 覆盖', results.length - noOrdersn, '/', results.length);
   await context.close();
 }
 

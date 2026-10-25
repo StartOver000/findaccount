@@ -1,15 +1,18 @@
 // 率土之滨藏宝阁 - 候选账号批量采集脚本 (v2: 列表页点击式)
-// 用法: node cbg-detail-extract.js
+// 用法: node cbg-detail-extract.js [LIST_URL] [OUT_FILE]
 // 前置:
 //   1. 首次运行弹出浏览器,请在浏览器里登录藏宝阁(cookie 保存在 .cbg-profile 复用)
 //   2. 脚本打开列表页(白名单+价格档), 滚动加载全部卡片, 逐个点击进入详情提取
 // 输出: accounts-detail.json (每轮断点保存)
 //
 // 每个候选采集: 概览 / 武将(5星筛选+红度) / 战法 / 宝物
+// 断点续采主键: ordersn（overview.url 末段或卡片链接提取）；旧数据缺 ordersn 时才回退 server-price
+// 阈值来源: data/strategy-config.json（经 lib-config.js），不在 URL 里写死 1500-2500/85/12
 
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const cfg = require('./lib-config.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT_FILE = process.argv[3] || path.join(ROOT, 'data', 'accounts-detail.json');
@@ -17,9 +20,44 @@ const PROFILE_DIR = path.join(ROOT, '.cbg-profile');
 const LOGIN_WAIT_SECONDS = Number(process.env.CBG_LOGIN_WAIT_SECONDS || 120);
 const CAPTCHA_WAIT_SECONDS = Number(process.env.CBG_CAPTCHA_WAIT_SECONDS || 120);
 
-// 列表页 URL(白名单 65 服 + 价格档 + 五星≥85 + 宝物≥12)
-// 用法: node cbg-detail-extract.js [LIST_URL] [OUT_FILE]
-const LIST_URL = process.argv[2] || 'https://stzb.cbg.163.com/cgi/mweb/pl?search_type=role&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=44748,44749,44750,44751,44752,44753,44754,44755,44761,44762,44763,44764,44765,44766,44773,44774,44775,44776,44777,44778,44779,44788,44789,44790,44791,44792,44793,44794,44804,44805,44808,44809,44810,44811,44812,44819,44820,44821,44822,44823,44824,44834,44835,44836,44837,44838,44839,44840,44841,44854,44855,44856,44857,44858,44859,44860,44861,44862,44863,44869,44870,44871,44872,44873,44874&price_min=150000&price_max=250000&five_star_hero_count=85&duanzao_gear_cnt=12';
+// 列表页 URL(当前开放试师区服 + 价格档 + 五星/锻造门槛)，参数全部来自策略配置单源:
+//   price_min/price_max = l1_pool.priceRange（元 → 分）
+//   five_star_hero_count = l1_pool.bargainLine.fiveStarMin
+//   duanzao_gear_cnt = l1_pool.bargainLine.forgedGearMin（捡漏线，与原默认 12 一致）
+// 试师区服: 统一从 scripts/lib-shishi.js 读取（data/shishi-open.json，update-shishi.js 生成）
+const { getServerIds } = require('./lib-shishi');
+const SERVERIDS = getServerIds().ids;
+const L1 = cfg.getL1();
+const L2 = cfg.getL2();
+const POOL_PRICE = L1.priceRange;
+const FIVE_STAR_MIN = L1.bargainLine.fiveStarMin;
+const FORGED_GEAR_MIN = L1.bargainLine.forgedGearMin;
+for (const [name, v] of [['l1_pool.priceRange', POOL_PRICE], ['l1_pool.bargainLine.fiveStarMin', FIVE_STAR_MIN], ['l1_pool.bargainLine.forgedGearMin', FORGED_GEAR_MIN]]) {
+  if (typeof v !== 'number' && !(Array.isArray(v) && v.length === 2 && v.every(n => typeof n === 'number'))) {
+    console.error(`[cbg-detail] 配置 ${name} 缺失或格式错误: ${JSON.stringify(v)}`);
+    process.exit(1);
+  }
+}
+const LIST_URL = process.argv[2] || `https://stzb.cbg.163.com/cgi/mweb/pl?search_type=role&tfid=f_kingkong&baijia_hero_logic=and&dynamic_icon_hero_id_logic=and&game_compete_serverid=${SERVERIDS}&price_min=${POOL_PRICE[0] * 100}&price_max=${POOL_PRICE[1] * 100}&five_star_hero_count=${FIVE_STAR_MIN}&duanzao_gear_cnt=${FORGED_GEAR_MIN}`;
+cfg.logEffective('[cbg-detail]');
+console.log(`[cbg-detail] 价格档 ¥${POOL_PRICE[0]}-${POOL_PRICE[1]} | 五星≥${FIVE_STAR_MIN} | 锻造≥${FORGED_GEAR_MIN} | L2 稀世≥${L2.rareEquipMin} | URL 参数与配置指纹 ${cfg.configFingerprint()} 一致`);
+
+// ---- ordersn 归一化（断点续采/去重主键） ----
+function ordersnFromUrl(u) {
+  const tail = String(u || '').split('?')[0].replace(/\/+$/, '').split('/').pop();
+  return /^\d{8,}-/.test(tail) ? tail : '';
+}
+function recKey(r) {
+  if (!r) return '';
+  const sn = (r.list && r.list.ordersn) || ordersnFromUrl(r.overview && r.overview.url);
+  if (sn) return 'sn:' + sn;
+  if (!r.overview) return '';
+  return `sp:${r.overview.server}-${String(r.overview.price || '').replace(/,/g, '')}`;
+}
+function cardKey(c) {
+  if (c.ordersn) return 'sn:' + c.ordersn;
+  return `sp:${c.server}-${String(c.price || '').replace(/,/g, '')}`;
+}
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // 随机延迟: 降低风控触发概率
@@ -171,7 +209,12 @@ async function collectCards(page) {
         const st = (t.match(/(\d+)个S级战法/) || ['', ''])[1];
         const eq = (t.match(/(\d+)个稀世宝物/) || ['', ''])[1];
         const lim = (t.match(/(\d+)个限定武将/) || ['', ''])[1];
-        return { idx, price: price ? price.replace(/,/g, '') : '', server, stars, st, eq, lim };
+        // 卡片链接里带 ordersn（/cgi/mweb/equip/1/<ordersn>），作为断点续采/去重主键
+        const a = c.querySelector('a[href*="equip/"]');
+        const href = a ? (a.getAttribute('href') || '') : '';
+        const m = href.match(/equip\/1\/([A-Za-z0-9-]{8,})/);
+        const ordersn = m ? m[1] : '';
+        return { idx, price: price ? price.replace(/,/g, '') : '', server, stars, st, eq, lim, ordersn };
       })
       .filter(c => c.server);
   });
@@ -203,7 +246,8 @@ async function main() {
   if (fs.existsSync(OUT_FILE)) {
     try { results = JSON.parse(fs.readFileSync(OUT_FILE, 'utf-8')); } catch (e) { results = []; }
   }
-  const doneKeys = new Set(results.map(r => r.overview && (r.overview.url || (r.overview.server + '-' + r.overview.price))).filter(Boolean));
+  // 断点续采主键: ordersn 优先；仅旧数据缺 ordersn 时回退 server-price
+  const doneKeys = new Set(results.map(recKey).filter(Boolean));
 
   // 等待列表卡片出现(未登录时卡片为0, 会在此等待用户登录)
   async function waitForCards() {
@@ -239,10 +283,10 @@ async function main() {
 
   let rounds = 0;
   while (rounds < 500) {
-    const pending = cards.find(c => !doneKeys.has(c.server + '-' + c.price));
+    const pending = cards.find(c => !doneKeys.has(cardKey(c)));
     if (!pending) { console.log('全部处理完成'); break; }
     const idx = cards.indexOf(pending);
-    console.log(`[${doneKeys.size}/${cards.length}] 处理: ${pending.server} ¥${pending.price} ...`);
+    console.log(`[${doneKeys.size}/${cards.length}] 处理: ${pending.server} ¥${pending.price} ${pending.ordersn ? 'ordersn=' + pending.ordersn : '(无 ordersn, 回退 server-price)'} ...`);
     try {
       // 滚动到目标卡(返回后列表位置会变, 每次用 scrollIntoView 定位)
       await page.evaluate((i) => {
@@ -286,30 +330,35 @@ async function main() {
       const heroes = await extractHeroes(page);
       const tactics = await extractTactics(page);
       const equips = await extractEquips(page);
+      const ordersn = pending.ordersn || ordersnFromUrl(overview.url);
 
       const rec = {
-        list: { price: pending.price, server: pending.server, stars: pending.stars, st: pending.st, eq: pending.eq, lim: pending.lim },
+        list: { price: pending.price, server: pending.server, stars: pending.stars, st: pending.st, eq: pending.eq, lim: pending.lim, ordersn },
         overview,
         heroCount: heroes.cards ? heroes.cards.length : 0,
         heroes: heroes.cards || [],
         tactics,
-        equips
+        equips,
+        source: 'browser',
+        capturedAt: new Date().toISOString(),
+        statusKind: cfg.classifyStatus(overview.status)
       };
       results.push(rec);
       fs.writeFileSync(OUT_FILE, JSON.stringify(results, null, 1), 'utf-8');
       const sv = overview.server || pending.server;
       const pr = overview.price || pending.price;
-      // 统一 key: 服务器-价格, 避免重复处理同一张卡
-      doneKeys.add(sv + '-' + pr);
-      doneKeys.add(pending.server + '-' + pending.price);
-      console.log(`  ✓ ${sv} ¥${overview.price} ${overview.stars}★ ${overview.sTactics}S ${overview.rareEquips}宝 满红${overview.fullRed} 限${overview.limited} 锻${overview.forged} | 武将${heroes.cards ? heroes.cards.length : 0} 战法${tactics.length} 宝${equips.length}`);
+      // 统一 key: ordersn 优先; 同时补 server-price 兼容旧数据
+      doneKeys.add(recKey(rec));
+      doneKeys.add(cardKey(pending));
+      doneKeys.add(`sp:${sv}-${String(pr).replace(/,/g, '')}`);
+      console.log(`  ✓ ${sv} ¥${overview.price} ${overview.stars}★ ${overview.sTactics}S ${overview.rareEquips}宝 满红${overview.fullRed} 限${overview.limited} 锻${overview.forged} | 武将${heroes.cards ? heroes.cards.length : 0} 战法${tactics.length} 宝${equips.length} | ordersn=${ordersn || '-'} 状态=${rec.statusKind}`);
       // 返回列表(复用当前列表 DOM, 不用重新 goto+滚动)
       await page.goBack().catch(() => {});
       await sleep(1800);
       if (!(await ensureList())) break;
     } catch (e) {
       console.error('  ERROR:', e.message);
-      doneKeys.add(pending.server + '-' + pending.price);
+      doneKeys.add(cardKey(pending));
       await page.goBack().catch(() => {});
       await sleep(1800);
       if (!(await ensureList())) break;
