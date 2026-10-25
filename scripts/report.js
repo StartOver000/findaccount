@@ -11,7 +11,7 @@
 //
 // 用法:
 //   node scripts/report.js --customer 自用
-//   node scripts/report.js --customer 客户 --data data/accounts-final.json --top 12 --cards 3 --detail 3
+//   node scripts/report.js --customer 客户 --data data/accounts-final.json --top 12 --cards 5 --detail 5
 //   node scripts/report.js --customer REPORTTEST --json
 // 输出: docs/找号报告-<customer>-<YYYYMMDD>.md（--out 可覆盖）
 // 退出码: 0 成功；1 失败（配置/数据/队伍库/写文件异常）
@@ -37,15 +37,15 @@ const STATUS_LABEL = {
 const STATUS_ORDER = ['onSale', 'publicity', 'sold', 'delisted', 'other', 'unknown'];
 
 const USAGE = [
-  '用法: node scripts/report.js --customer <客户名> [--data <file>] [--out <file>] [--top 12] [--cards 3] [--detail 3] [--json] [--quiet]',
+  '用法: node scripts/report.js --customer <客户名> [--data <file>] [--out <file>] [--top 12] [--cards 5] [--detail 5] [--json] [--quiet]',
   '',
   '  生成 docs/找号报告-<客户名>-<YYYYMMDD>.md（单进程替代 report.ps1 的 analyze+check+plan5 链）。',
   '  --customer  客户名，默认 自用（也是 find-all.ps1 传入的参数）',
   '  --data      账号数据文件，默认 data/accounts-final.json',
   '  --out       输出 md 路径（默认 docs/找号报告-<客户>-<YYYYMMDD>.md）',
   '  --top       候选排名表行数，默认 12',
-  '  --cards     一分钟摘要卡片数，默认 3',
-  '  --detail    落地队伍明细账号数，默认 3',
+  '  --cards     一分钟摘要卡片数，默认 5',
+  '  --detail    落地队伍明细账号数，默认 5',
   '  --json      以 JSON 输出运行摘要（含耗时/计数/Top1），便于自动化校验',
   '  --quiet     不输出进度日志',
   '  -h/--help   显示帮助'
@@ -54,7 +54,7 @@ const USAGE = [
 // ---------------- CLI ----------------
 function parseArgs(argv) {
   const o = {
-    customer: '自用', data: DEFAULT_DATA, out: '', top: 12, cards: 3, detail: 3,
+    customer: '自用', data: DEFAULT_DATA, out: '', top: 12, cards: 5, detail: 5,
     json: false, quiet: false, help: false
   };
   for (let i = 0; i < argv.length; i++) {
@@ -69,8 +69,8 @@ function parseArgs(argv) {
       case '--data': o.data = next(); break;
       case '--out': o.out = next(); break;
       case '--top': o.top = Math.max(1, parseInt(next(), 10) || 12); break;
-      case '--cards': o.cards = Math.max(1, parseInt(next(), 10) || 3); break;
-      case '--detail': o.detail = Math.max(1, parseInt(next(), 10) || 3); break;
+      case '--cards': o.cards = Math.max(1, parseInt(next(), 10) || 5); break;
+      case '--detail': o.detail = Math.max(1, parseInt(next(), 10) || 5); break;
       case '--json': o.json = true; break;
       case '--quiet': o.quiet = true; break;
       case '-h': case '--help': o.help = true; break;
