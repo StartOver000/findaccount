@@ -33,6 +33,7 @@ const OUT_DIR = process.argv[3] ? path.resolve(process.argv[3]) : path.join(ROOT
 const TIER_W = L3.tierWeight;
 const F_ONLY_GEAR = L3.onlyGearFactor;
 const F_MISS_TAC = L3.missTacticFactor;
+const CURVE = L3.missingTacticCurve;
 const T1PLUS = S.T1PLUS;
 const HR = L3.hardRules;
 const GATE = L3.gate;
@@ -125,7 +126,7 @@ function main() {
   push(`# 新选号策略 · 落地评估（${CFG.version}）`);
   push('');
   push(`> 数据: \`${path.relative(ROOT, DATA_FILE)}\`（${rowsOn.length} 个号；价格口径见数据文件）｜参数: \`data/strategy-config.json\`｜评估引擎: \`scripts/lib-scoring.js\``);
-  push(`> 排序公式: **落地战力 = Σ完整队权重 + ${F_ONLY_GEAR}×Σ只缺宝权重 + ${F_MISS_TAC}×Σ缺战法权重**，档位权重 ${JSON.stringify(TIER_W)}`);
+  push(`> 排序公式: **落地战力 = Σ完整队权重×1 + ${F_ONLY_GEAR}×Σ只缺宝权重 + 缺战法分级（缺1×${CURVE.oneMissingFactor}、缺2降档×${CURVE.twoMissing.factor}、缺${CURVE.threePlusFactor ? '3+×' + CURVE.threePlusFactor : '3+×0'}）；每本战法最多救 ${CURVE.rescueCapPerTactic} 队**，档位权重 ${JSON.stringify(TIER_W)}`);
   push('');
   push('## 1. 门槛与样本');
   push('');
@@ -136,7 +137,7 @@ function main() {
   push(`| 补宝型通道（≥${GATE.alt2_baobao.minOnlyGearT1plus} 支只缺宝 T1+ 且其中 ≥${GATE.alt2_baobao.minRealGrowth} 支只缺 1-2 件宝） | ${baoRows.length} |`);
   push(`| 通过门槛但被「溢价规则」拦下（价格 >${HR.premiumOver.price} 且没有多买到完整 T1+ / T0 只缺宝） | ${premiumBlocked.length} |`);
   push(`| 全池中价格 >${HR.premiumOver.price} 且不满足溢价规则（含未过门槛的号） | ${premiumExcluded.length} |`);
-  push(`| 司马懿=晋 版本覆盖：拦截伪命中队伍 / 净新增队伍 | ${addTeams < 0 ? -addTeams : 0} / 0（未覆盖时魏司马懿等会被误算；覆盖后晋司马懿队均因缺战法≥${HR.highTierMissingTactics.minMissing} 被硬规则剔除） |`);
+  push(`| 司马懿=晋 版本覆盖：拦截伪命中队伍 / 净新增队伍 | ${addTeams < 0 ? -addTeams : 0} / 0（未覆盖时魏司马懿会被误算成晋司马懿；覆盖后晋司马懿队均因缺战法≥2 按「降档×0.6」计入，不再有额外的完整/只缺宝队） |`);
   push('');
   push('## 2. 主门槛通过 · Top 15（按落地战力）');
   push('');
@@ -173,7 +174,7 @@ function main() {
       push(`| ${label(r)} | ¥${r.price} | ${r.score} | ${r.full.length} | ${r.onlyGearT1plus} | ${r.growth.length} | 无完整 T1+ 且无 T0 只缺宝 |`);
     });
   } else push('（无）');
-  push('### 4.1 Top 5 明细（按战力）');
+  push('### 4.2 Top 5 明细（按战力）');
   push('');
   const byScore = candidates.slice().sort((a, b) => b.score - a.score || a.price - b.price);
   for (const r of byScore.slice(0, 5)) {
@@ -181,6 +182,7 @@ function main() {
     push(`- 完整队: ${fmtTeams(r.full)}`);
     push(`- 只缺宝: ${r.onlyGear.length ? r.onlyGear.map(t => `${t.team}(${t.tier})缺${t.eMiss || '?'}`).join('、') : '—'}`);
     push(`- 真成长（只缺 1-2 件宝的 T1+）: ${r.growth.length ? r.growth.map(t => `${t.team}(${t.tier})缺${t.eMiss}`).join('、') : '—'}`);
+    push(`- 缺战法: 缺1 ${r.missTacticStats.oneMissing} 支（救 ${r.missTacticStats.rescued} / 未救 ${r.missTacticStats.unrescued}）、缺2 ${r.missTacticStats.twoMissing} 支、缺3+ ${r.missTacticStats.threePlus} 支；T1+ 缺口 缺1 ${r.missT1plus.one}（救 ${r.missT1plus.rescued}）/ 缺2 ${r.missT1plus.two} / 缺3+ ${r.missT1plus.threePlus}`);
     push(`- 五星 ${r.stars} / S战法 ${r.sTac} / 锻造 ${r.forged == null ? '未知(API)' : r.forged}`);
     push('');
   }

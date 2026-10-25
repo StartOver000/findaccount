@@ -115,7 +115,7 @@ npm run find -- -SkipReport                                # 只采集 + 合并
 | `l0_data` | 数据时效与在售状态口径 | `maxStaleDays`（默认 14，超期即旧快照，报告必须标注）、`statusLabels`（上架/公示/售出/下架的页面文案归一化）、`excludeFromRecommend`（售出/下架不进推荐） |
 | `l1_pool` | 选品池 | `priceRange`（1500–2500 元）、`bargainLine`（低价捡漏线：价格区间 / 五星 / 锻造 / topN）、`serverWhitelist`（指向 `docs/试师赛季白名单.md`，不得另写第二份） |
 | `l2_list_filter` | 列表页硬门槛 + 详情预算 + 预筛分 | `fiveStarMin`、`sTacticMin`、`forgedGearMin`、`coreHeroHitsMin`、`rareEquipMin`、`maxDetailCandidates`、`detailBudget`、`prefilter.weights`（有锻造数据时）/`prefilter.weightsNoForged`（API 列表无锻造数时）、`controlMode`（`FUNNEL_CONTROL=1` 反证实验采样区间） |
-| `l3_scoring` | 落地战力评分与硬规则 | `tierWeight`（T0+ 10 / T0 8 / T1 5 / T2- 2）、`onlyGearFactor`、`missTacticFactor`、`versionOverrides`（版本武将，如「司马懿」要求晋）、`skipHeroes`、`hardRules`（高 T 缺战法/只缺宝/溢价硬降权）、`gate`（入选门槛：`minFullT1plus`、alt、alt2_baobao 补宝通道）、`profiles`（即战型/均衡型/补宝型画像） |
+| `l3_scoring` | 落地战力评分与硬规则 | `tierWeight`（T0+ 10 / T0 8 / T1 5 / T2- 2）、`onlyGearFactor`、`missingTacticCurve`（缺战法分级：缺 1 本 ×0.7 且每本战法最多救 1 队 / 缺 2 本降档 ×0.6 / 缺 3+ 记 0）、`versionOverrides`（版本武将，如「司马懿」要求晋）、`skipHeroes`、`hardRules`（只缺宝过多/溢价硬降权；旧「高 T 缺战法整队剔除」已由曲线取代）、`gate`（入选门槛：`minFullT1plus`、alt、alt2_baobao 补宝通道）、`profiles`（即战型/均衡型/补宝型画像） |
 | `l4_manual_check` | 人工复核清单 | `topN`（默认复核前 3 名）、`checks`（版本武将、宝物词条、上架状态/公示期、服务器与价格二次确认） |
 
 调参流程建议：先跑 `npm run filter-strategy` 看单因子证据与召回，再改本文件，

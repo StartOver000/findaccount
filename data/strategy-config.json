@@ -73,6 +73,23 @@
     },
     "onlyGearFactor": 0.8,
     "missTacticFactor": 0.2,
+    "missingTacticCurve": {
+      "enabled": true,
+      "oneMissingFactor": 0.7,
+      "twoMissing": {
+        "tierDown": {
+          "T0+": "T0",
+          "T0": "T1",
+          "T1": "T2-",
+          "T2-": "T2-"
+        },
+        "factor": 0.6
+      },
+      "threePlusFactor": 0,
+      "rescueCapPerTactic": 1,
+      "extraTeamsFactor": "twoMissing",
+      "note": "缺战法分级（2026-10-25 用户口径）：缺 1 只扣分（×0.7）；缺 2 向下走一截（档位降一级后再 ×0.6，如 T0→T1）；缺 3 及以上记 0。同一本战法只有一张替补卡 → 每本战法最多救 1 队（rescueCapPerTactic），多出的同缺口队补不上、按「缺 2」降档计（extraTeamsFactor=twoMissing；设为 zero 则记 0）。启用本曲线后 highTierMissingTactics 的整队剔除失效（enabled=false）。"
+    },
     "versionOverrides": {
       "司马懿": "晋"
     },
@@ -80,12 +97,14 @@
       "弓诸葛"
     ],
     "hardRules": {
+      "note": "highTierMissingTactics 自 2026-10-25 起由 missingTacticCurve 取代（enabled=false 时不再整队剔除，缺 2 改为降档计分）；onlyGearManyMissing / premiumOver 继续生效。",
       "highTierMissingTactics": {
         "tiers": [
           "T0+",
           "T0"
         ],
-        "minMissing": 2
+        "minMissing": 2,
+        "enabled": false
       },
       "onlyGearManyMissing": {
         "tiers": [

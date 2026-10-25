@@ -317,10 +317,10 @@ function main() {
     md.push(`### ${medal} ${statusWarn}${priceText(ev.price)} · ${esc(r.server)} · 战力 ${ev.score} · 性价比 ${ev.valuePer1000}/千元`);
     md.push('');
     md.push(`- 状态: **${statusLabel}**${r.st.raw && r.st.raw !== statusLabel ? `（${esc(r.st.raw)}）` : ''} · 画像: ${ev.profile} · 链接: ${r.url || '（无）'}`);
-    md.push(`- 落地: 完整 **${ev.full.length}** 队 · 只缺宝 **${ev.onlyGear.length}** 队 · 缺战法 ${ev.missTac.length} 队 | 完整T1+ ${ev.fullT1plus} · T0/T0+只缺宝 ${ev.t0OnlyGear} · 真成长 ${ev.growth.length} | 主门槛 ${ev.gatePass ? '✅' : '—'} · 补宝门槛 ${ev.baoBaoPass ? '✅' : '—'}`);
+    md.push(`- 落地: 完整 **${ev.full.length}** 队 · 只缺宝 **${ev.onlyGear.length}** 队 · 缺战法 ${ev.missTac.length} 队（缺1可救 ${ev.missTacticStats.rescued}/${ev.missTacticStats.oneMissing} · 缺2 ${ev.missTacticStats.twoMissing} · 缺3+ ${ev.missTacticStats.threePlus}）| 完整T1+ ${ev.fullT1plus} · T0/T0+只缺宝 ${ev.t0OnlyGear} · 真成长 ${ev.growth.length} | 主门槛 ${ev.gatePass ? '✅' : '—'} · 补宝门槛 ${ev.baoBaoPass ? '✅' : '—'}`);
     md.push(`- 武将/战法/宝物: ${ev.stars != null ? `${ev.stars} 张五星` : '五星?'} · S战法 ${ev.sTac != null ? ev.sTac : '?'} · 锻造 ${ev.forged != null ? ev.forged : '?'} · 武将 ${ev.heroCount != null ? ev.heroCount : '?'} 名`);
     if (best.length) {
-      md.push(`- 建议 5 队: ${best.map(c => `\`${c.Team}(${c.Tier}·${c.TMiss === '' ? (c.EMiss === '' ? '完整' : '只缺宝') : '缺战法'})\``).join('、')}`);
+      md.push(`- 建议 5 队: ${best.map(c => `\`${c.Team}(${c.Tier}·${c.TMiss === '' ? (c.EMiss === '' ? '完整' : '只缺宝') : (c.k === 1 ? '缺1战法(可救)' : '缺战法')})\``).join('、')}`);
     }
   });
 
@@ -332,10 +332,10 @@ function main() {
   md.push('');
   md.push(`> 过门槛账号 ${passed.length} 个（主门槛 ${gatePassCount} / 补宝门槛 ${baoBaoCount}），其中溢价拦截 ${passedPremiumBlocked} 个、状态为 ${[...exclude].join('/')} 剔除 ${excludedByStatus} 个；下表为剩余可推荐账号。`);
   md.push('');
-  md.push('| # | 账号 | 价格 | 状态 | 战力 | 性价比 | 完整 | 只缺宝 | 缺战法 | 完整T1+ | 画像 |');
+  md.push('| # | 账号 | 价格 | 状态 | 战力 | 性价比 | 完整 | 只缺宝 | 缺战法(1/2/3+) | 完整T1+ | 画像 |');
   md.push('|---|------|------|------|------|--------|------|--------|--------|---------|------|');
   candidates.forEach((r, i) => {
-    md.push(`| ${i + 1} | ${linkOf(r.server, r.url)} | ${priceText(r.price)} | ${STATUS_LABEL[r.st.kind] || r.st.kind} | ${r.ev.score} | ${r.ev.valuePer1000} | ${r.ev.full.length} | ${r.ev.onlyGear.length} | ${r.ev.missTac.length} | ${r.ev.fullT1plus} | ${r.ev.profile} |`);
+    md.push(`| ${i + 1} | ${linkOf(r.server, r.url)} | ${priceText(r.price)} | ${STATUS_LABEL[r.st.kind] || r.st.kind} | ${r.ev.score} | ${r.ev.valuePer1000} | ${r.ev.full.length} | ${r.ev.onlyGear.length} | ${r.ev.missTacticStats.oneMissing}/${r.ev.missTacticStats.twoMissing}/${r.ev.missTacticStats.threePlus} | ${r.ev.fullT1plus} | ${r.ev.profile} |`);
   });
   if (!candidates.length) md.push('| - | 无 | - | - | - | - | - | - | - | - | - |');
 
@@ -353,12 +353,13 @@ function main() {
     md.push('');
     md.push(`### 3.${i + 1} ${priceText(r.price)} · ${linkOf(r.server, r.url)} · 战力 ${ev.score} · ${ev.profile} · ${STATUS_LABEL[r.st.kind] || r.st.kind}`);
     md.push('');
-    md.push(`> 完整 ${ev.full.length} / 只缺宝 ${ev.onlyGear.length} / 缺战法 ${ev.missTac.length} · 真成长 ${ev.growth.length} · 组合最优评分 ${plan.res ? plan.res.bestScore : '-'}`);
+    md.push(`> 完整 ${ev.full.length} / 只缺宝 ${ev.onlyGear.length} / 缺战法 ${ev.missTac.length}（缺1可救 ${ev.missTacticStats.rescued}/${ev.missTacticStats.oneMissing} · 缺2 ${ev.missTacticStats.twoMissing} · 缺3+ ${ev.missTacticStats.threePlus}）· 真成长 ${ev.growth.length} · 组合最优评分 ${plan.res ? plan.res.bestScore : '-'}`);
+    md.push(`> T1+ 战法缺口: 缺1 ${ev.missT1plus.one}（可救 ${ev.missT1plus.rescued}）/ 缺2 ${ev.missT1plus.two} / 缺3+ ${ev.missT1plus.threePlus}；每本战法最多救 1 队，未救回及缺≥2 的队不进「现有可打 5 队」`);
     md.push('');
     md.push('| # | 队伍 | 档位 | 状态 | 缺战法 | 缺宝物 | 武将 |');
     md.push('|---|------|------|------|--------|--------|------|');
     best.forEach((c, j) => {
-      const st = c.TMiss === '' ? (c.EMiss === '' ? '✅完整' : '🟡只缺宝') : '🔴缺战法';
+      const st = c.TMiss === '' ? (c.EMiss === '' ? '✅完整' : '🟡只缺宝') : (c.k === 1 ? '🟠缺1战法(可救)' : (c.k === 2 ? '🟠缺2战法(降档)' : '🔴缺3+战法(记0)'));
       const heroes = (c.Heroes || []).map(esc).join('、');
       md.push(`| ${j + 1} | ${esc(c.Team)} | ${c.Tier} | ${st} | ${esc(c.TMiss || '—')} | ${esc(c.EMiss || '—')} | ${heroes} |`);
     });
@@ -405,7 +406,7 @@ function main() {
   const tips = [];
   tips.push(`售出/下架账号 ${excludedByStatus} 个、溢价拦截 ${passedPremiumBlocked} 个已排除在推荐之外；状态未知 ${statusCounts.unknown || 0} 个需人工点开链接确认。`);
   if (staleDays > maxStaleDays) tips.push(`数据快照距今 ${staleDays} 天（阈值 ${maxStaleDays}），价格/在售状态可能已变化，下单前请以商品链接为准。`);
-  tips.push('战力 = 榜单档位权重 × 落地状态系数（完整 1.0 / 只缺宝 0.8 / 缺战法 0.2，高档缺战法/缺宝过多另有降权），未计入红度、赛季、宝物词条等细项，最终以游戏内实测为准。');
+  tips.push('战力 = 榜单档位权重 × 落地状态系数（完整 1.0 / 只缺宝 0.8 / 缺 1 本战法 0.7 且每本战法最多救 1 队 / 缺 2 本战法降一档 ×0.6 / 缺 3+ 本记 0；只缺宝过多另有降权），未计入红度、赛季、宝物词条等细项，最终以游戏内实测为准。');
   tips.push('榜单未识别项（弓诸葛/新垣曲/刘璋、8 个战法、金鸾/隕口/戟 等宝物）按「缺失」保守计算，相关队伍落地可能被低估。');
   for (const t of tips) md.push(`> - ${t}`);
   md.push('');

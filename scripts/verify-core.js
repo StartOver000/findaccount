@@ -57,6 +57,13 @@ test('配置：l0/l2/l3 段齐全且数值合法', () => {
   assert(tw['T0+'] > 0 && tw.T0 > 0, 'tierWeight 缺失关键档位');
   assert(cfg.getPrefilterWeights('full').st > 0, 'prefilter.weights 异常');
   assert(cfg.getPrefilterWeights('noForged').st > 0, 'prefilter.weightsNoForged 异常');
+  const curve = cfg.getL3().missingTacticCurve;
+  assert(curve && curve.enabled !== false, 'l3_scoring.missingTacticCurve 缺失或被关闭');
+  assert(typeof curve.oneMissingFactor === 'number' && curve.oneMissingFactor > 0 && curve.oneMissingFactor <= 1, 'oneMissingFactor 非法');
+  assert(curve.twoMissing && typeof curve.twoMissing.factor === 'number' && curve.twoMissing.factor > 0, 'twoMissing.factor 非法');
+  assert(typeof curve.rescueCapPerTactic === 'number' && curve.rescueCapPerTactic >= 1, 'rescueCapPerTactic 非法');
+  assert(typeof curve.threePlusFactor === 'number' && curve.threePlusFactor >= 0, 'threePlusFactor 非法');
+  assert(curve.twoMissing.tierDown && curve.twoMissing.tierDown.T0 === 'T1', 'tierDown 映射异常');
 });
 
 test('配置：状态归一化 classifyStatus', () => {
@@ -139,6 +146,45 @@ test('接线：统一评分引擎 lib-scoring 被 plan5-core/strategy-eval 使�
     const src = read(rel);
     assert(src.includes('lib-scoring'), `${rel} 未使用统一评分引擎`);
   }
+});
+
+test('评分：缺战法分级曲线（缺1×0.7救1队/缺2降档/缺3记0）', () => {
+  const S = require('./lib-scoring');
+  const mkTeam = (name, tier, missing) => {
+    const half = Math.ceil(missing.length / 2);
+    const grp = arr => arr.map(t => ({ label: t, options: [t] }));
+    return {
+      Team: name, Tier: tier, Heroes: ['甲', '乙'],
+      Slots: [
+        { raw: '甲', candidates: [{ name: '甲' }], second: grp(missing.slice(0, half)), third: [], equip: [] },
+        { raw: '乙', candidates: [{ name: '乙' }], second: grp(missing.slice(half)), third: [], equip: [] }
+      ]
+    };
+  };
+  const acc = {
+    heroes: [{ name: '甲', marks: [] }, { name: '乙', marks: [] }],
+    tactics: [], equips: [], overview: { price: 200000, url: 'https://x/cbg/abc123' }, list: { server: 'X0' }
+  };
+  const teams = [
+    mkTeam('A', 'T0', ['T1']),          // 缺1，救回 → 8×0.7=5.6
+    mkTeam('B', 'T0', ['T1']),          // 同一本战法第二支，救不到 → T0 降 T1：5×0.6=3
+    mkTeam('C', 'T0', ['T2', 'T3']),    // 缺2 → 降档：5×0.6=3
+    mkTeam('D', 'T0', ['T4', 'T5', 'T6']), // 缺3+ → 0
+    mkTeam('E', 'T1', [])               // 完整 → 5
+  ];
+  const r = S.evaluate(acc, teams, false);
+  assert(r.missTacticStats.oneMissing === 2, `oneMissing 期望 2，实际 ${r.missTacticStats.oneMissing}`);
+  assert(r.missTacticStats.rescued === 1, `rescued 期望 1，实际 ${r.missTacticStats.rescued}`);
+  assert(r.missTacticStats.unrescued === 1, `unrescued 期望 1，实际 ${r.missTacticStats.unrescued}`);
+  assert(r.missTacticStats.twoMissing === 1, `twoMissing 期望 1，实际 ${r.missTacticStats.twoMissing}`);
+  assert(r.missTacticStats.threePlus === 1, `threePlus 期望 1，实际 ${r.missTacticStats.threePlus}`);
+  assert(r.missT1plus.one === 2 && r.missT1plus.rescued === 1 && r.missT1plus.two === 1 && r.missT1plus.threePlus === 1, 'missT1plus 统计异常');
+  assert(r.full.length === 1 && r.fullT1plus === 1, '完整队统计异常');
+  assert(Math.abs(r.score - 16.6) < 0.01, `战力期望 16.6，实际 ${r.score}`);
+  // planAccount：缺≥2 的队不进「现有可打」，缺1 仅救 1 支
+  const plan = S.planAccount(acc, teams);
+  assert(plan.cand.length === 2, `planAccount 可打队期望 2（完整E+救回A），实际 ${plan.cand.length}`);
+  assert(plan.cand.filter(c => c.k === 1).length === 1, 'planAccount 未执行每本战法最多救 1 队');
 });
 
 test('接线：report.js 存在且可被 find-all 调用', () => {

@@ -2,10 +2,12 @@
 // lib-scoring.js — 统一评估引擎（唯一实现，参数全部来自 data/strategy-config.json）
 // 取代三套分散权重: plan5-core.planAccount / strategy-eval.evaluate / analyze-accounts.ps1 的权重段。
 // 参数来源: lib-config.getL3() → l3_scoring.{tierWeight,onlyGearFactor,missTacticFactor,
-//          versionOverrides,skipHeroes,hardRules,gate,profiles}
+//          missingTacticCurve,versionOverrides,skipHeroes,hardRules,gate,profiles}
 // 语义要点:
 //   - 武将按槽位匹配；合并单元格（木鹿/曹仁）按「候选任一命中」；
 //   - 战法/宝物单元格内 A/B 表示二选一，命中任一即视为满足；
+//   - 缺战法按缺口数分档（missingTacticCurve）：缺 1 ×0.7、缺 2 降一档再 ×0.6、缺 3+ 记 0；
+//     同一本战法只有一张替补卡 → 每本最多救 rescueCapPerTactic 队，多出的按「缺 2」降档计；
 //   - versionOverrides（如 司马懿=晋）在 evaluate(acc,teams,true) 时生效；
 //   - skipHeroes 中的武将（弓诸葛）所在队伍整队跳过（账号数据里没有该武将）。
 // 用法:
@@ -39,6 +41,28 @@ const forgedOf = a => (a.overview && a.overview.forged != null) ? parseInt(a.ove
 const nMiss = s => (s ? String(s).split('/').filter(Boolean).length : 0);
 
 // ---------------- 配置 ----------------
+const DEFAULT_CURVE = {
+  enabled: true,
+  oneMissingFactor: 0.7,
+  twoMissing: { tierDown: { 'T0+': 'T0', 'T0': 'T1', 'T1': 'T2-', 'T2-': 'T2-' }, factor: 0.6 },
+  threePlusFactor: 0,
+  rescueCapPerTactic: 1,
+  extraTeamsFactor: 'twoMissing'
+};
+function normalizeCurve(raw) {
+  const src = raw || {};
+  const c = Object.assign({}, DEFAULT_CURVE, src);
+  c.enabled = c.enabled !== false;
+  c.twoMissing = Object.assign({}, DEFAULT_CURVE.twoMissing, src.twoMissing || {});
+  c.twoMissing.tierDown = Object.assign({}, DEFAULT_CURVE.twoMissing.tierDown, (src.twoMissing && src.twoMissing.tierDown) || {});
+  for (const k of ['oneMissingFactor', 'threePlusFactor']) {
+    if (typeof c[k] !== 'number') throw new Error(`l3_scoring.missingTacticCurve.${k} 不是数字`);
+  }
+  if (typeof c.twoMissing.factor !== 'number') throw new Error('l3_scoring.missingTacticCurve.twoMissing.factor 不是数字');
+  if (typeof c.rescueCapPerTactic !== 'number' || c.rescueCapPerTactic < 1) throw new Error('l3_scoring.missingTacticCurve.rescueCapPerTactic 必须 >= 1');
+  if (c.extraTeamsFactor !== 'twoMissing' && c.extraTeamsFactor !== 'zero') throw new Error('l3_scoring.missingTacticCurve.extraTeamsFactor 只支持 twoMissing / zero');
+  return c;
+}
 function getScoringConfig() {
   const l3 = cfg.getL3();
   if (!l3 || typeof l3 !== 'object') throw new Error('strategy-config.json 缺少 l3_scoring 段');
@@ -48,6 +72,7 @@ function getScoringConfig() {
     tierWeight,
     onlyGearFactor: l3.onlyGearFactor != null ? l3.onlyGearFactor : 0.8,
     missTacticFactor: l3.missTacticFactor != null ? l3.missTacticFactor : 0.2,
+    missingTacticCurve: normalizeCurve(l3.missingTacticCurve),
     versionOverrides: l3.versionOverrides || {},
     skipHeroes: l3.skipHeroes || [],
     hardRules: l3.hardRules || {},
@@ -181,23 +206,52 @@ function bestCombination(cand, maxK) {
 // ---------------- 账号规划 / 落地清单 ----------------
 function planAccount(acc, teams, opts) {
   const o = opts || { useOverride: true };
+  const C = getScoringConfig();
+  const CURVE = C.missingTacticCurve;
+  const HR = C.hardRules;
   const idx = buildIndex(acc);
   const cand = [];
+  const oneMissing = [];
   for (const team of teams) {
     const st = teamStatus(team, idx, o);
     if (!st || st.skipped) continue;
-    const land = st.TMissCount === 0 && st.EMissCount === 0 ? 3
-      : st.TMissCount === 0 ? 2
-        : st.EMissCount === 0 ? 1 : 0;
-    cand.push({
+    const w = C.tierWeight[team.Tier] || 0;
+    const item = {
       Team: team.Team,
       Tier: team.Tier,
       Heroes: [...(team.Heroes || [])],
       HeroKeys: ensureSlots(team).map(s => (s.candidates && s.candidates[0] ? s.candidates[0].name : s.raw)),
-      Score: tierScore(team.Tier) + land,
+      Score: 0,
       TMiss: st.TMiss,
-      EMiss: st.EMiss
-    });
+      EMiss: st.EMiss,
+      k: st.TMissCount
+    };
+    if (st.TMissCount === 0 && st.EMissCount === 0) {
+      item.Score = w;
+      cand.push(item);
+    } else if (st.TMissCount === 0) {
+      let extra = 1;
+      if (HR.onlyGearManyMissing && HR.onlyGearManyMissing.tiers.includes(team.Tier) &&
+        st.EMissCount >= HR.onlyGearManyMissing.minMissing) extra = HR.onlyGearManyMissing.factor;
+      item.Score = nf(w * C.onlyGearFactor * extra);
+      cand.push(item);
+    } else if (CURVE.enabled && st.TMissCount === 1) {
+      // 缺 1 本的队可能靠替补卡救回；先收集，稍后按「每本战法最多救 1 队」截断
+      item.Score = nf(w * CURVE.oneMissingFactor);
+      oneMissing.push(item);
+    }
+    // 缺 >= 2 本战法：短期补两件不现实，不进入「现有可打」阵容（仍算进 evaluate 的战力降档）
+  }
+  if (oneMissing.length) {
+    const byTactic = new Map();
+    for (const c of oneMissing) {
+      if (!byTactic.has(c.TMiss)) byTactic.set(c.TMiss, []);
+      byTactic.get(c.TMiss).push(c);
+    }
+    for (const list of byTactic.values()) {
+      list.sort((a, b) => b.Score - a.Score);
+      list.forEach((c, i) => { if (i < CURVE.rescueCapPerTactic) cand.push(c); });
+    }
   }
   const res = bestCombination(cand, 5);
   let fullCount = 0, onlyGearCount = 0;
@@ -215,7 +269,7 @@ function landStatusList(acc, teams, opts) {
   for (const team of teams) {
     const st = teamStatus(team, idx, o);
     if (!st || st.skipped) continue;
-    const item = { team: team.Team, tier: team.Tier, tMiss: st.TMiss, eMiss: st.EMiss };
+    const item = { team: team.Team, tier: team.Tier, tMiss: st.TMiss, eMiss: st.EMiss, k: st.TMissCount };
     if (st.TMissCount === 0 && st.EMissCount === 0) full.push(item);
     else if (st.TMissCount === 0) onlyGear.push(item);
     else missTac.push(item);
@@ -226,7 +280,7 @@ function landStatusList(acc, teams, opts) {
 // ---------------- 完整评估（与旧 strategy-eval.evaluate 字段兼容） ----------------
 function evaluate(acc, teams, useOverride) {
   const C = getScoringConfig();
-  const HR = C.hardRules, GATE = C.gate, P = C.profiles;
+  const HR = C.hardRules, GATE = C.gate, P = C.profiles, CURVE = C.missingTacticCurve;
   const idx = buildIndex(acc);
   const rows = [];
   let preHard = 0;
@@ -237,18 +291,89 @@ function evaluate(acc, teams, useOverride) {
     preHard++;
     const tier = team.Tier;
     const w = C.tierWeight[tier] || 0;
-    // 硬规则 1: 高档队缺战法 >= N 直接当不存在
-    if (w && HR.highTierMissingTactics && HR.highTierMissingTactics.tiers.includes(tier) &&
-      st.TMissCount >= HR.highTierMissingTactics.minMissing) continue;
-    let status, factor = 0, extra = 1;
-    if (st.TMissCount === 0 && st.EMissCount === 0) { status = 'full'; factor = 1; }
+    // 硬规则 1（legacy）：高档队缺战法 >= N 整队不计。曲线启用后由 missingTacticCurve 取代（缺 2 降档计分）。
+    const hr1 = HR.highTierMissingTactics;
+    if (!CURVE.enabled && w && hr1 && hr1.enabled !== false && (!hr1.tiers || hr1.tiers.includes(tier)) &&
+      st.TMissCount >= hr1.minMissing) continue;
+    let status, extra = 1;
+    if (st.TMissCount === 0 && st.EMissCount === 0) status = 'full';
     else if (st.TMissCount === 0) {
-      status = 'onlyGear'; factor = C.onlyGearFactor;
+      status = 'onlyGear';
       // 硬规则 2: 只缺宝但缺 >= N 件 → 纸面潜力降权
       if (HR.onlyGearManyMissing && HR.onlyGearManyMissing.tiers.includes(tier) &&
         st.EMissCount >= HR.onlyGearManyMissing.minMissing) extra = HR.onlyGearManyMissing.factor;
-    } else { status = 'missTac'; factor = C.missTacticFactor; }
-    rows.push({ team: team.Team, tier, status, tMiss: st.TMiss, eMiss: st.EMiss, contribution: nf(w * factor * extra) });
+    } else status = 'missTac';
+    rows.push({
+      team: team.Team, tier, status, tMiss: st.TMiss, eMiss: st.EMiss,
+      k: st.TMissCount, extra, factor: 0, contribution: 0, rescued: false
+    });
+  }
+
+  // ---- 缺战法分级曲线：缺 1 扣分 / 缺 2 降档 / 缺 3+ 记 0；每本战法最多救 1 队 ----
+  const twoContribution = tier => {
+    const down = (CURVE.twoMissing.tierDown && CURVE.twoMissing.tierDown[tier]) || tier;
+    return { down, value: nf((C.tierWeight[down] || 0) * CURVE.twoMissing.factor) };
+  };
+  const missStats = { oneMissing: 0, twoMissing: 0, threePlus: 0, rescued: 0, unrescued: 0, rescuedTeams: [] };
+  const missRows = rows.filter(r => r.status === 'missTac');
+  if (CURVE.enabled) {
+    // 缺 1 本的队：按缺失战法分组，每组只救该组档位最高的 rescueCapPerTactic 支
+    const oneByTactic = new Map();
+    for (const r of missRows) {
+      if (r.k !== 1) continue;
+      if (!oneByTactic.has(r.tMiss)) oneByTactic.set(r.tMiss, []);
+      oneByTactic.get(r.tMiss).push(r);
+    }
+    for (const [tactic, list] of oneByTactic) {
+      list.sort((a, b) => (C.tierWeight[b.tier] || 0) - (C.tierWeight[a.tier] || 0));
+      list.forEach((r, i) => {
+        r.rescued = i < CURVE.rescueCapPerTactic;
+        if (r.rescued) {
+          missStats.rescued++;
+          missStats.rescuedTeams.push({ team: r.team, tier: r.tier, tactic });
+        } else missStats.unrescued++;
+      });
+    }
+  }
+  for (const r of rows) {
+    const w = C.tierWeight[r.tier] || 0;
+    if (r.status === 'full') {
+      r.factor = 1;
+      r.contribution = nf(w);
+    } else if (r.status === 'onlyGear') {
+      r.factor = nf(C.onlyGearFactor * r.extra);
+      r.contribution = nf(w * r.factor);
+    } else if (CURVE.enabled) {
+      if (r.k >= 3) {
+        r.factor = CURVE.threePlusFactor;
+        r.contribution = nf(w * CURVE.threePlusFactor);
+        missStats.threePlus++;
+      } else if (r.k === 2) {
+        const t = twoContribution(r.tier);
+        r.tierDownTo = t.down;
+        r.factor = w ? nf(t.value / w) : 0;
+        r.contribution = t.value;
+        missStats.twoMissing++;
+      } else {
+        missStats.oneMissing++;
+        if (r.rescued) {
+          r.factor = CURVE.oneMissingFactor;
+          r.contribution = nf(w * CURVE.oneMissingFactor);
+        } else if (CURVE.extraTeamsFactor === 'zero') {
+          r.factor = 0;
+          r.contribution = 0;
+        } else {
+          const t = twoContribution(r.tier);
+          r.tierDownTo = t.down;
+          r.factor = w ? nf(t.value / w) : 0;
+          r.contribution = t.value;
+        }
+      }
+    } else {
+      // 曲线关闭：退回旧的「缺战法统一 ×missTacticFactor」口径
+      r.factor = C.missTacticFactor;
+      r.contribution = nf(w * C.missTacticFactor);
+    }
   }
 
   const full = rows.filter(r => r.status === 'full');
@@ -262,6 +387,12 @@ function evaluate(acc, teams, useOverride) {
   // 真成长 = T1+ 只缺宝且缺 <= N 件（补宝型只认这个）
   const growth = onlyGear.filter(r => T1PLUS.includes(r.tier) &&
     nMiss(r.eMiss) <= (GATE.alt2_baobao ? GATE.alt2_baobao.maxEquipMissingPerTeam : 2));
+  const missT1plus = {
+    one: missTac.filter(r => T1PLUS.includes(r.tier) && r.k === 1).length,
+    rescued: missTac.filter(r => T1PLUS.includes(r.tier) && r.k === 1 && r.rescued).length,
+    two: missTac.filter(r => T1PLUS.includes(r.tier) && r.k === 2).length,
+    threePlus: missTac.filter(r => T1PLUS.includes(r.tier) && r.k >= 3).length
+  };
 
   // ---- 门槛 ----
   const gatePass = fullT1plus >= GATE.minFullT1plus ||
@@ -291,6 +422,7 @@ function evaluate(acc, teams, useOverride) {
     full, onlyGear, missTac, growth,
     score, valuePer1000,
     fullT1plus, onlyGearT1plus, t0OnlyGear,
+    missTacticStats: missStats, missT1plus,
     gatePass, baoBaoPass, premiumOk, profile,
     preHard, hardDropped: preHard - rows.length
   };
