@@ -1,0 +1,304 @@
+// ============================================================
+// lib-scoring.js — 统一评估引擎（唯一实现，参数全部来自 data/strategy-config.json）
+// 取代三套分散权重: plan5-core.planAccount / strategy-eval.evaluate / analyze-accounts.ps1 的权重段。
+// 参数来源: lib-config.getL3() → l3_scoring.{tierWeight,onlyGearFactor,missTacticFactor,
+//          versionOverrides,skipHeroes,hardRules,gate,profiles}
+// 语义要点:
+//   - 武将按槽位匹配；合并单元格（木鹿/曹仁）按「候选任一命中」；
+//   - 战法/宝物单元格内 A/B 表示二选一，命中任一即视为满足；
+//   - versionOverrides（如 司马懿=晋）在 evaluate(acc,teams,true) 时生效；
+//   - skipHeroes 中的武将（弓诸葛）所在队伍整队跳过（账号数据里没有该武将）。
+// 用法:
+//   const S = require('./lib-scoring.js');
+//   const teams = require('./lib-teams.js').loadTeams().teams;
+//   const r = S.evaluate(acc, teams, true);
+//   const plan = S.planAccount(acc, teams);
+// ============================================================
+'use strict';
+const cfg = require('./lib-config.js');
+const teamsLib = require('./lib-teams.js');
+
+const T1PLUS = ['T0+', 'T0', 'T1'];
+const nf = n => Number(Number(n).toFixed(2));
+const priceOf = a => {
+  // 兼容两种数据源: merge 后是元(1500-2500), API 原始文件是分(150000-250000)
+  const raw = parseInt(String(a.overview && a.overview.price).replace(/,/g, ''), 10);
+  return raw >= 10000 ? Math.round(raw / 100) : raw;
+};
+const starsOf = a => {
+  if (a.list && a.list.stars) return parseInt(a.list.stars, 10);
+  const m = String((a.list && a.list.sumup) || '').match(/(\d+)张五星/);
+  return m ? +m[1] : null;
+};
+const sTacOf = a => {
+  if (a.overview && a.overview.sTactics) return parseInt(a.overview.sTactics, 10);
+  const m = String((a.list && a.list.sumup) || '').match(/(\d+)个S级/);
+  return m ? +m[1] : null;
+};
+const forgedOf = a => (a.overview && a.overview.forged != null) ? parseInt(a.overview.forged, 10) : null;
+const nMiss = s => (s ? String(s).split('/').filter(Boolean).length : 0);
+
+// ---------------- 配置 ----------------
+function getScoringConfig() {
+  const l3 = cfg.getL3();
+  if (!l3 || typeof l3 !== 'object') throw new Error('strategy-config.json 缺少 l3_scoring 段');
+  const tierWeight = l3.tierWeight;
+  if (!tierWeight || typeof tierWeight !== 'object') throw new Error('l3_scoring.tierWeight 缺失');
+  return {
+    tierWeight,
+    onlyGearFactor: l3.onlyGearFactor != null ? l3.onlyGearFactor : 0.8,
+    missTacticFactor: l3.missTacticFactor != null ? l3.missTacticFactor : 0.2,
+    versionOverrides: l3.versionOverrides || {},
+    skipHeroes: l3.skipHeroes || [],
+    hardRules: l3.hardRules || {},
+    gate: l3.gate || {},
+    profiles: l3.profiles || {}
+  };
+}
+function tierScore(tier) {
+  return getScoringConfig().tierWeight[tier] || 0;
+}
+function isT1Plus(tier) { return T1PLUS.includes(tier); }
+
+// ---------------- 账号索引 ----------------
+function buildHeroMarks(acc) {
+  const m = {};
+  for (const h of acc.heroes || []) {
+    const mk = Array.isArray(h.marks) ? h.marks : [String(h.marks || '')];
+    (m[h.name] = m[h.name] || []).push(...mk);
+  }
+  return m;
+}
+function buildIndex(acc) {
+  const idx = { heroMarks: buildHeroMarks(acc), tacSet: {}, eqSet: {} };
+  for (const t of acc.tactics || []) idx.tacSet[t] = true;
+  for (const e of acc.equips || []) idx.eqSet[e] = true;
+  return idx;
+}
+
+// ---------------- 槽位/队伍 ----------------
+function ensureSlots(team) {
+  if (Array.isArray(team.Slots) && team.Slots.length) return team.Slots;
+  // 兼容旧结构（{Heroes,T1,T2,Equip} 扁平字符串）：尽力还原，仅用于外部旧数据
+  const heroes = team.Heroes || [];
+  const split = s => String(s || '').split('/').map(x => x.trim()).filter(Boolean);
+  const t1 = split(team.T1), t2 = split(team.T2), eq = split(team.Equip);
+  const groups = tokens => tokens.map(tok => {
+    const r = teamsLib.resolveTactic(tok);
+    return { label: tok, options: r.options };
+  });
+  const eqGroups = tokens => tokens.map(tok => {
+    const r = teamsLib.resolveEquip(tok);
+    return { label: tok, options: [r.name] };
+  });
+  // 尽量按「每名武将一组」分配；数量不匹配时把全部需求挂到第一格（旧扁平语义）
+  const per = (tokens, i) => {
+    if (tokens.length === heroes.length) return [tokens[i]].map(x => groups([x]?x:[])[0]).filter(Boolean);
+    return i === 0 ? groups(tokens) : [];
+  };
+  return heroes.map((h, i) => ({
+    raw: h,
+    candidates: [teamsLib.normalizeHero(h)],
+    second: per(t1, i),
+    third: per(t2, i),
+    equip: i === 0 ? eqGroups(eq) : []
+  }));
+}
+function slotHit(slot, idx, overrideMap) {
+  for (const c of slot.candidates || []) {
+    const marks = idx.heroMarks[c.name];
+    if (!marks) continue;
+    const req = (overrideMap && overrideMap[c.name]) || c.version;
+    if (!req || marks.some(mk => String(mk).includes(req))) return true;
+  }
+  return false;
+}
+function teamSkipped(team) {
+  const skip = getScoringConfig().skipHeroes;
+  if (!skip.length) return false;
+  const names = new Set();
+  for (const slot of ensureSlots(team)) for (const c of slot.candidates || []) { names.add(c.name); names.add(c.raw); }
+  for (const h of team.Heroes || []) names.add(h);
+  return skip.some(h => names.has(h));
+}
+function groupMiss(groups, set) {
+  return (groups || []).filter(g => !(g.options || []).some(o => set[o]));
+}
+
+// 单队落地状态: null=武将不满足/被跳过; 否则 {TMiss,EMiss,TMissCount,EMissCount,skipped}
+function teamStatus(team, idx, opts) {
+  const o = opts || {};
+  if (teamSkipped(team)) return { skipped: true, TMiss: '', EMiss: '', TMissCount: 0, EMissCount: 0 };
+  const slots = ensureSlots(team);
+  for (const slot of slots) if (!slotHit(slot, idx, o.useOverride ? getScoringConfig().versionOverrides : null)) return null;
+  const missingT = [], missingE = [];
+  for (const slot of slots) {
+    for (const g of groupMiss(slot.second, idx.tacSet)) missingT.push(g.label);
+    for (const g of groupMiss(slot.third, idx.tacSet)) missingT.push(g.label);
+    for (const g of groupMiss(slot.equip, idx.eqSet)) missingE.push(g.label);
+  }
+  const tm = [...new Set(missingT)], em = [...new Set(missingE)];
+  return {
+    skipped: false,
+    TMiss: tm.join('/'), EMiss: em.join('/'),
+    TMissCount: tm.length, EMissCount: em.length,
+    status: tm.length === 0 && em.length === 0 ? 'full' : (tm.length === 0 ? 'onlyGear' : 'missTac')
+  };
+}
+
+// ---------------- 组合枚举（武将不重复，最大化总分） ----------------
+function bestCombination(cand, maxK) {
+  const n = cand.length;
+  if (n === 0) return null;
+  const maxK2 = Math.min(maxK, n);
+  let best = null, bestScore = -1, combos = 0, kNow = maxK2;
+  const chosen = [];
+  const keysOf = c => c.HeroKeys || c.Heroes || [];
+  function dfs(start, depth) {
+    if (depth === kNow) {
+      combos++;
+      const used = new Set(); let conflict = false; let sc = 0;
+      for (const ci of chosen) {
+        const c = cand[ci];
+        for (const h of keysOf(c)) { if (used.has(h)) { conflict = true; break; } }
+        if (conflict) break;
+        for (const h of keysOf(c)) used.add(h);
+        sc += c.Score;
+      }
+      if (!conflict && sc > bestScore) { bestScore = sc; best = chosen.map(ci => cand[ci]); }
+      return;
+    }
+    for (let i = start; i < n; i++) { chosen.push(i); dfs(i + 1, depth + 1); chosen.pop(); }
+  }
+  for (let k = maxK2; k >= 1; k--) {
+    kNow = k;
+    dfs(0, 0);
+    if (bestScore >= 0) break;
+  }
+  return { best, bestScore, combos };
+}
+
+// ---------------- 账号规划 / 落地清单 ----------------
+function planAccount(acc, teams, opts) {
+  const o = opts || { useOverride: true };
+  const idx = buildIndex(acc);
+  const cand = [];
+  for (const team of teams) {
+    const st = teamStatus(team, idx, o);
+    if (!st || st.skipped) continue;
+    const land = st.TMissCount === 0 && st.EMissCount === 0 ? 3
+      : st.TMissCount === 0 ? 2
+        : st.EMissCount === 0 ? 1 : 0;
+    cand.push({
+      Team: team.Team,
+      Tier: team.Tier,
+      Heroes: [...(team.Heroes || [])],
+      HeroKeys: ensureSlots(team).map(s => (s.candidates && s.candidates[0] ? s.candidates[0].name : s.raw)),
+      Score: tierScore(team.Tier) + land,
+      TMiss: st.TMiss,
+      EMiss: st.EMiss
+    });
+  }
+  const res = bestCombination(cand, 5);
+  let fullCount = 0, onlyGearCount = 0;
+  for (const c of cand) {
+    if (c.TMiss === '' && c.EMiss === '') fullCount++;
+    else if (c.TMiss === '') onlyGearCount++;
+  }
+  return { cand, res, fullCount, onlyGearCount };
+}
+
+function landStatusList(acc, teams, opts) {
+  const o = opts || { useOverride: true };
+  const idx = buildIndex(acc);
+  const full = [], onlyGear = [], missTac = [];
+  for (const team of teams) {
+    const st = teamStatus(team, idx, o);
+    if (!st || st.skipped) continue;
+    const item = { team: team.Team, tier: team.Tier, tMiss: st.TMiss, eMiss: st.EMiss };
+    if (st.TMissCount === 0 && st.EMissCount === 0) full.push(item);
+    else if (st.TMissCount === 0) onlyGear.push(item);
+    else missTac.push(item);
+  }
+  return { full, onlyGear, missTac };
+}
+
+// ---------------- 完整评估（与旧 strategy-eval.evaluate 字段兼容） ----------------
+function evaluate(acc, teams, useOverride) {
+  const C = getScoringConfig();
+  const HR = C.hardRules, GATE = C.gate, P = C.profiles;
+  const idx = buildIndex(acc);
+  const rows = [];
+  let preHard = 0;
+  for (const team of teams) {
+    if (teamSkipped(team)) continue;
+    const st = teamStatus(team, idx, { useOverride });
+    if (!st || st.skipped) continue;
+    preHard++;
+    const tier = team.Tier;
+    const w = C.tierWeight[tier] || 0;
+    // 硬规则 1: 高档队缺战法 >= N 直接当不存在
+    if (w && HR.highTierMissingTactics && HR.highTierMissingTactics.tiers.includes(tier) &&
+      st.TMissCount >= HR.highTierMissingTactics.minMissing) continue;
+    let status, factor = 0, extra = 1;
+    if (st.TMissCount === 0 && st.EMissCount === 0) { status = 'full'; factor = 1; }
+    else if (st.TMissCount === 0) {
+      status = 'onlyGear'; factor = C.onlyGearFactor;
+      // 硬规则 2: 只缺宝但缺 >= N 件 → 纸面潜力降权
+      if (HR.onlyGearManyMissing && HR.onlyGearManyMissing.tiers.includes(tier) &&
+        st.EMissCount >= HR.onlyGearManyMissing.minMissing) extra = HR.onlyGearManyMissing.factor;
+    } else { status = 'missTac'; factor = C.missTacticFactor; }
+    rows.push({ team: team.Team, tier, status, tMiss: st.TMiss, eMiss: st.EMiss, contribution: nf(w * factor * extra) });
+  }
+
+  const full = rows.filter(r => r.status === 'full');
+  const onlyGear = rows.filter(r => r.status === 'onlyGear');
+  const missTac = rows.filter(r => r.status === 'missTac');
+  const score = nf(rows.reduce((s, r) => s + r.contribution, 0));
+  const fullT1plus = full.filter(r => T1PLUS.includes(r.tier)).length;
+  const onlyGearT1plus = onlyGear.filter(r => T1PLUS.includes(r.tier)).length;
+  const t0OnlyGear = onlyGear.filter(r => r.tier === 'T0+' || r.tier === 'T0').length;
+  const price = priceOf(acc);
+  // 真成长 = T1+ 只缺宝且缺 <= N 件（补宝型只认这个）
+  const growth = onlyGear.filter(r => T1PLUS.includes(r.tier) &&
+    nMiss(r.eMiss) <= (GATE.alt2_baobao ? GATE.alt2_baobao.maxEquipMissingPerTeam : 2));
+
+  // ---- 门槛 ----
+  const gatePass = fullT1plus >= GATE.minFullT1plus ||
+    (fullT1plus >= GATE.alt.minFullT1plus && onlyGearT1plus >= GATE.alt.minOnlyGearT1plus);
+  const baoBaoPass = !gatePass &&
+    onlyGearT1plus >= GATE.alt2_baobao.minOnlyGearT1plus &&
+    growth.length >= GATE.alt2_baobao.minRealGrowth;
+
+  // ---- 溢价规则 ----
+  let premiumOk = true;
+  if (price > HR.premiumOver.price) {
+    premiumOk = fullT1plus >= HR.premiumOver.requireFullT1plus || t0OnlyGear >= HR.premiumOver.requireT0OnlyGear;
+  }
+
+  // ---- 画像 ----
+  let profile = '其他';
+  if (P['即战型'] && full.length >= P['即战型'].fullMin && fullT1plus >= P['即战型'].fullT1plusMin && onlyGear.length <= P['即战型'].onlyGearMax) profile = '即战型';
+  else if (P['均衡型'] && fullT1plus >= P['均衡型'].fullT1plusMin && onlyGear.length >= P['均衡型'].onlyGearMin) profile = '均衡型';
+  else if (P['补宝型'] && fullT1plus <= P['补宝型'].fullT1plusMax && onlyGearT1plus >= P['补宝型'].onlyGearT1plusMin) profile = '补宝型';
+
+  const valuePer1000 = price > 0 ? nf(score / (price / 1000)) : 0;
+  const sn = String((acc.overview && acc.overview.url) || '').split('/').pop().split('?')[0];
+  return {
+    ordersn: sn, server: acc.list.server, price,
+    stars: starsOf(acc), sTac: sTacOf(acc), forged: forgedOf(acc),
+    heroCount: acc.heroCount,
+    full, onlyGear, missTac, growth,
+    score, valuePer1000,
+    fullT1plus, onlyGearT1plus, t0OnlyGear,
+    gatePass, baoBaoPass, premiumOk, profile,
+    preHard, hardDropped: preHard - rows.length
+  };
+}
+
+module.exports = {
+  T1PLUS, nf, priceOf, starsOf, sTacOf, forgedOf, nMiss,
+  getScoringConfig, tierScore, isT1Plus,
+  buildHeroMarks, buildIndex, ensureSlots, teamSkipped, teamStatus, bestCombination,
+  planAccount, landStatusList, evaluate
+};

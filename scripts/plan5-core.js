@@ -1,219 +1,105 @@
 // ============================================================
-// plan5-core.js — 榜单解析/版本校验/落地判断/5队规划 公共核心库
-// 供 plan5-node.js / land-stats.js / recommend.js 共用, 避免重复代码
-// 用法:
+// plan5-core.js — 榜单解析/版本校验/落地判断/5队规划 公共核心库（兼容层）
+//
+// 重构说明（2026-10-25）:
+//   - 解析: 只保留这一份入口，实际由 lib-teams.js 完成（优先 data/teams.json，
+//           缺失时回退 docs/队伍强度排行榜.md 并打 warning，别名/合并格/多选一已归一）；
+//   - 评分: 由 lib-scoring.js 统一实现，参数全部来自 data/strategy-config.json 的 l3_scoring
+//           （tierWeight / onlyGearFactor / missTacticFactor / versionOverrides / skipHeroes /
+//            hardRules / gate / profiles），不再在 plan5-core 内硬编码权重；
+//   - 旧导出 TacticMap / VersionReq / NormalizeMap 仍保留，但改为从
+//     data/tactics-map.json、data/team-aliases.json 生成（单一数据源，不再两处维护）。
+// 用法（向后兼容）:
 //   const core = require('./plan5-core.js');
 //   const teams = core.initTeams();
 //   const plan = core.planAccount(acc, teams);       // { cand, res, fullCount, onlyGearCount }
 //   const list = core.landStatusList(acc, teams);    // { full, onlyGear, missTac }
 // ============================================================
-const fs = require('fs');
-const path = require('path');
-const ROOT = path.resolve(__dirname, '..');
-const RANK_FILE = path.join(ROOT, 'docs', '队伍强度排行榜.md');
+'use strict';
+const teamsLib = require('./lib-teams.js');
+const scoring = require('./lib-scoring.js');
 
-// ---- 战法简称 → 全名映射(与 lib-cbg.ps1 一致) ----
-const TacticMap = {
-  '合纵':['合纵连横'], '避锐':['避锐治气'], '百战':['百战无怯','百战精兵'], '愈战':['愈战愈勇'],
-  '垒实':['垒实迎击'], '三术':['三术奇谋'], '桃园':['桃园结义'], '正始':['正始之变'],
-  '一骑':['一骑当千'], '令无':['令无空悬'], '一夫':['一夫当关'], '浑水':['浑水摸鱼'],
-  '神兵':['神兵天降'], '大赏':['大赏三军'], '众谋':['众谋不懈'], '先驱':['先驱突击'],
-  '击势':['击势'], '乘胜':['乘胜追击'], '疾击':['疾击其后'], '飒沓':['飒沓如星'],
-  '单骑':['单骑救主'], '长兵':['长兵方阵'], '文伐':['文伐'], '战必':['战必断金'],
-  '反计':['反计之策','反计'], '火烧':['火烧连营'], '河内':['河内世泽'], '久战':['久战熟谋'],
-  '当阳':['当阳桥'], '攻其':['攻其不备','攻其要害'], '三军':['三军齐出','大赏三军','三军之众'],
-  '兵无':['兵无常势'], '步步':['步步为营'], '除恶':['除恶务尽'], '道行':['道行险阻'],
-  '风声':['风声鹤唳'], '及锋':['及锋而试'], '计险':['计险远近'], '兼弱':['兼弱攻昧'],
-  '健卒':['健卒不殆'], '绝水':['绝水遏敌'], '利兵':['利兵谋胜'], '谋定':['谋定后动'],
-  '磐阵':['磐阵善守'], '奇正':['奇正之势'], '全军':['全军突击'], '深谋':['深谋远虑'],
-  '胜兵':['胜兵求战'], '势无':['势无虚动'], '望风':['望风而降'], '威震':['威震逍遥'],
-  '无心':['无心恋战'], '形兵':['形兵之极'], '悬权':['悬权而动'], '以诱':['以诱待来'],
-  '诱敌':['诱敌深入','诱敌'], '知己':['知己知彼'], '甚陷':['甚陷不惧'],
-  '风仪亭':['凤仪亭'], '追击':['乘胜追击'],
-  '反击之策':['反击之策'], '反间':['反间'], '合众':['合众'], '疾战':['疾战'],
-  '衡轭':['衡轭'], '始计':['始计'], '空城':['空城'], '妖术':['妖术'],
-  '枭雄':['枭雄'], '闪击':['闪击'], '不攻':['不攻']
-};
+const ROOT = teamsLib.ROOT;
+const RANK_FILE = teamsLib.RANK_FILE;
 
-// ---- 版本/阵营要求: 榜单武将名 → 账号武将 marks 必须包含的标记 ----
-const VersionReq = {
-  '汉苟彧':'汉', '汉孙坚':'汉', '汉董':'汉', '汉吕':'汉',
-  'XP姜维':'XP', 'XP孙权':'XP', 'XP周瑜':'XP',
-  '弓吕':'弓', '群貂':'群', '新黄盖':'新',
-  '曹操':'魏', '关羽':'蜀', '赵云':'SP', '吕吕':'群', '孙权':'吴', '董卓':'群', '姜维':'蜀'
-};
-
-// ---- Normalize(榜单异名 → 采集标准名) ----
-const NormalizeMap = { 'XP姜维':'姜维', '汉孙坚':'孙坚', 'XP孙权':'孙权', 'XP周瑜':'周瑜', '祝融':'祝融夫人',
-  '新黄盖':'黄盖', '汉苟彧':'荀彧', '泪授':'沮授', '汉董':'董卓', '几突骨':'兀突骨',
-  '木鹿':'木鹿大王', '群貂':'貂蝉', '吕吕':'吕布', '弓吕':'吕布', '汉吕':'吕布', '丹英':'貂蝉', 'SP赵云':'赵云' };
-function normHero(name) {
-  const n = String(name).trim();
-  return NormalizeMap[n] || n;
+// ---- 旧兼容表: 从数据文件生成，保持历史消费者的访问方式 ----
+const _aliases = teamsLib.loadAliases();
+const _tactics = teamsLib.loadTacticsMap();
+const TacticMap = {};
+for (const k of Object.keys((_tactics && _tactics.map) || {})) TacticMap[k] = (_tactics.map[k] || []).slice();
+const VersionReq = {};
+const NormalizeMap = {};
+for (const raw of Object.keys((_aliases && _aliases.heroAliases) || {})) {
+  const a = _aliases.heroAliases[raw];
+  if (!a) continue;
+  if (a.version) VersionReq[raw] = a.version;
+  if (a.name && a.name !== raw) NormalizeMap[raw] = a.name;
 }
 
+// ---- 榜单异名 → 账号标准名 ----
+function normHero(name) {
+  const n = String(name == null ? '' : name).trim();
+  const a = _aliases.heroAliases[n];
+  return (a && a.name) ? a.name : n;
+}
+
+// ---- 战法简称 → 全名命中（A/B 多选一已由 lib-teams 拆份，这里保持旧语义）----
 function tacticHit(short, accTacSet) {
-  if (TacticMap[short]) { for (const f of TacticMap[short]) if (accTacSet[f]) return true; }
-  else if (accTacSet[short]) return true;
+  const r = teamsLib.resolveTactic(short);
+  const set = accTacSet || {};
+  for (const o of r.options || []) if (set[o]) return true;
   return false;
 }
 
-// ---- 解析榜单(与 lib-cbg Initialize-RankTeams 一致) ----
+// ---- 解析榜单（优先 data/teams.json，缺失时回退 md 并告警）----
+let _teamsCache = null;
+let _warned = false;
 function initTeams() {
-  const lines = fs.readFileSync(RANK_FILE, 'utf-8').split(/\r?\n/);
-  // 速览是权威名单
-  const summary = {};
-  for (const sl of lines) {
-    const m = sl.match(/^\|\s*(T0\+|T0-|T0|T1|T2-)\s*\|\s*(.+?)\s*\|\s*$/);
-    if (m) summary[m[1]] = m[2].split('、').map(x => x.trim()).filter(Boolean);
-  }
-  const teams = [];
-  let tier = '', cur = null, heroes = [], t1list = [], t2list = [], eql = [], curTier = '';
-  for (const line of lines) {
-    const tm = line.match(/^##\s+(T0\+|T0-|T0|T1|T2-)\s*$/);
-    if (tm) { tier = tm[1]; continue; }
-    if (/^##\s+/.test(line)) { tier = ''; cur = null; heroes = []; t1list = []; t2list = []; eql = []; continue; }
-    const hm = line.match(/^###\s+(.+)$/);
-    if (hm) {
-      let raw = hm[1].trim();
-      let pt = tier;
-      if (raw.includes('已降级')) pt = 'T2-';
-      raw = raw.split('：').pop().trim();
-      raw = raw.replace(/^\d+[.、]\s*/, '').trim();
-      raw = raw.replace(/（.+?）/g, '').trim();
-      if (raw && ((!summary[pt]) || (summary[pt] && summary[pt].includes(raw)))) {
-        cur = raw; curTier = pt; heroes = []; t1list = []; t2list = []; eql = [];
-      }
-      continue;
+  if (_teamsCache) return _teamsCache;
+  const r = teamsLib.loadTeams();
+  if (!r.teams || !r.teams.length) throw new Error('未解析到任何队伍（data/teams.json 与 docs/队伍强度排行榜.md 均不可用）');
+  if (!_warned) {
+    _warned = true;
+    if (r.source !== 'teams.json') {
+      console.error('[plan5-core] 警告: data/teams.json 不可用，已回退解析 docs/队伍强度排行榜.md（建议运行: node scripts/build-teams-json.js）');
     }
-    if (cur) {
-      const fm = line.match(/^\|\s*([^|]+?)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|/);
-      if (fm) {
-        const h = fm[1].trim();
-        if (h === '武将' || h === '---') continue;
-        t1list.push(fm[2].trim()); t2list.push(fm[3].trim()); eql.push(fm[4].trim());
-        heroes.push(h);
-        if (heroes.length === 3) {
-          teams.push({ Tier: curTier, Team: cur, Heroes: [...heroes], T1: t1list.join('/'), T2: t2list.join('/'), Equip: eql.join('/') });
-          heroes = []; t1list = []; t2list = []; eql = [];
-        }
-      }
-    }
+    for (const w of r.warnings || []) console.error('[plan5-core] 解析告警: ' + w);
   }
-  return teams;
+  _teamsCache = r.teams;
+  return _teamsCache;
 }
 
-// ---- 校验账号武将是否满足队伍武将(含版本/阵营校验) ----
+// ---- 校验账号武将是否满足队伍武将(含版本校验) ----
 function testTeamHeroes(team, heroMarks) {
-  for (const h of team.Heroes) {
-    const nh = normHero(h);
-    const marks = heroMarks[nh];
-    if (!marks) return false;
-    const req = VersionReq[h];
-    if (req) {
-      let ok = false;
-      for (const mk of marks) if (mk.includes(req)) { ok = true; break; }
-      if (!ok) return false;
+  const override = scoring.getScoringConfig().versionOverrides;
+  for (const slot of scoring.ensureSlots(team)) {
+    let ok = false;
+    for (const c of slot.candidates || []) {
+      const marks = heroMarks && heroMarks[c.name];
+      if (!marks) continue;
+      const req = (override && override[c.name]) || c.version;
+      if (!req || marks.some(mk => String(mk).includes(req))) { ok = true; break; }
     }
+    if (!ok) return false;
   }
   return true;
 }
 
-// ---- 队伍落地状态 ----
+// ---- 队伍落地状态（旧签名：heroMarks 表 + 战法/宝物集合对象）----
 function teamLandStatus(team, heroMarks, accTac, accEq) {
-  if (!testTeamHeroes(team, heroMarks)) return null;
-  const needTs = [], needEs = [];
-  for (const part of [team.T1, team.T2]) for (const x of part.split('/')) { const t = x.trim(); if (t) needTs.push(t); }
-  for (const e of team.Equip.split('/')) { const t = e.trim(); if (t) needEs.push(t); }
-  const tMiss = [...new Set(needTs)].filter(t => !tacticHit(t, accTac));
-  const eMiss = [...new Set(needEs)].filter(e => !accEq[e]);
-  return { TMiss: tMiss.join('/'), EMiss: eMiss.join('/'), TMissCount: tMiss.length, EMissCount: eMiss.length };
+  const idx = { heroMarks: heroMarks || {}, tacSet: accTac || {}, eqSet: accEq || {} };
+  const st = scoring.teamStatus(team, idx, { useOverride: true });
+  if (!st || st.skipped) return null;
+  return { TMiss: st.TMiss, EMiss: st.EMiss, TMissCount: st.TMissCount, EMissCount: st.EMissCount };
 }
 
-// ---- 组合枚举: 从候选队伍中选最多5支(武将不重复), 最大化总分 ----
-function bestCombination(cand, maxK) {
-  const n = cand.length;
-  if (n === 0) return null;
-  const maxK2 = Math.min(maxK, n);
-  let best = null, bestScore = -1, combos = 0, kNow = maxK2;
-  const chosen = [];
-  function dfs(start, depth) {
-    if (depth === kNow) {
-      combos++;
-      const used = new Set(); let conflict = false; let sc = 0;
-      for (const ci of chosen) {
-        const c = cand[ci];
-        for (const h of c.Heroes) { if (used.has(h)) { conflict = true; break; } }
-        if (conflict) break;
-        for (const h of c.Heroes) used.add(h);
-        sc += c.Score;
-      }
-      if (!conflict && sc > bestScore) { bestScore = sc; best = chosen.map(ci => cand[ci]); }
-      return;
-    }
-    for (let i = start; i < n; i++) { chosen.push(i); dfs(i + 1, depth + 1); chosen.pop(); }
-  }
-  for (let k = maxK2; k >= 1; k--) {
-    kNow = k;
-    dfs(0, 0);
-    if (bestScore >= 0) break;
-  }
-  return { best, bestScore, combos };
-}
+// ---- 以下统一委托给 lib-scoring（唯一实现）----
+const bestCombination = scoring.bestCombination;
+const planAccount = scoring.planAccount;
+const landStatusList = scoring.landStatusList;
 
-// ---- 单个账号: 可组队伍 + 最优5队规划 ----
-function planAccount(acc, teams) {
-  const heroMarks = {};
-  for (const h of acc.heroes || []) {
-    const mk = Array.isArray(h.marks) ? h.marks : [String(h.marks || '')];
-    (heroMarks[h.name] = heroMarks[h.name] || []).push(...mk);
-  }
-  const accTac = {}, accEq = {};
-  for (const t of acc.tactics || []) accTac[t] = true;
-  for (const e of acc.equips || []) accEq[e] = true;
-  const cand = [];
-  for (const team of teams) {
-    if (team.Heroes.includes('弓诸葛') || team.Heroes.includes('司马懿')) continue;
-    const st = teamLandStatus(team, heroMarks, accTac, accEq);
-    if (!st) continue;
-    const tierScore = { 'T0+': 8, 'T0': 7, 'T1': 3, 'T2-': 1 }[team.Tier] || 0;
-    let land;
-    if (st.TMissCount === 0 && st.EMissCount === 0) land = 3;
-    else if (st.TMissCount === 0) land = 2;
-    else if (st.EMissCount === 0) land = 1;
-    else land = 0;
-    cand.push({ Team: team.Team, Tier: team.Tier, Heroes: [...team.Heroes], Score: tierScore + land, TMiss: st.TMiss, EMiss: st.EMiss });
-  }
-  const res = bestCombination(cand, 5);
-  let fullCount = 0, onlyGearCount = 0;
-  for (const c of cand) {
-    if (c.TMiss === '' && c.EMiss === '') fullCount++;
-    else if (c.TMiss === '') onlyGearCount++;
-  }
-  return { cand, res, fullCount, onlyGearCount };
-}
-
-// ---- 单个账号: 落地清单(完整/只缺宝/缺战法) ----
-function landStatusList(acc, teams) {
-  const heroMarks = {};
-  for (const h of acc.heroes || []) {
-    const mk = Array.isArray(h.marks) ? h.marks : [String(h.marks || '')];
-    (heroMarks[h.name] = heroMarks[h.name] || []).push(...mk);
-  }
-  const accTac = {}, accEq = {};
-  for (const t of acc.tactics || []) accTac[t] = true;
-  for (const e of acc.equips || []) accEq[e] = true;
-  const full = [], onlyGear = [], missTac = [];
-  for (const team of teams) {
-    if (team.Heroes.includes('弓诸葛') || team.Heroes.includes('司马懿')) continue;
-    const st = teamLandStatus(team, heroMarks, accTac, accEq);
-    if (!st) continue;
-    const o = { team: team.Team, tier: team.Tier, tMiss: st.TMiss, eMiss: st.EMiss };
-    if (st.TMissCount === 0 && st.EMissCount === 0) full.push(o);
-    else if (st.TMissCount === 0) onlyGear.push(o);
-    else missTac.push(o);
-  }
-  return { full, onlyGear, missTac };
-}
-
-module.exports = { TacticMap, VersionReq, NormalizeMap, normHero, tacticHit, initTeams, testTeamHeroes, teamLandStatus, bestCombination, planAccount, landStatusList };
+module.exports = {
+  ROOT, RANK_FILE,
+  TacticMap, VersionReq, NormalizeMap, normHero, tacticHit,
+  initTeams, testTeamHeroes, teamLandStatus, bestCombination, planAccount, landStatusList
+};
