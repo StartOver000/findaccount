@@ -12,6 +12,7 @@
     "shishi:force-api": "node scripts/update-shishi.js --force-api --check --allow-stale",
     "strategy": "node scripts/strategy-eval.js",
     "filter-strategy": "node scripts/filter-strategy.js",
+    "checklist": "node scripts/candidate-checklist.js",
     "diff": "node scripts/snapshot-diff.js",
     "test": "node scripts/verify-shishi.js && node scripts/verify-core.js",
     "verify:live": "node scripts/verify-shishi.js --live",

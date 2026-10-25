@@ -16,9 +16,11 @@
 - **藏宝阁在售账号采集**：列表 + 详情 API 直采，慢速串行（3–4 秒/号）防账号级限流，
   登录失效自动停下等人工处理，支持断点续采。
 - **合并与出处标注**：按 `ordersn`（商品号）去重，补 `source` / `capturedAt` / `statusKind`，
-  过期浏览器详情文件自动跳过。
+  过期浏览器详情文件自动跳过；旧记录没有真实采集时间时**留空**（报告标 ⏳），不用合并时间冒充。
 - **逐队落地报告**：按 `data/teams.json` 队伍库判断每个号能组出哪些完整队 / 只缺宝队 /
-  缺战法队，结合补件成本给出最终购买建议。
+  缺战法队，结合补件成本给出最终购买建议；报告逐条标注采集日期，过期候选标 ⏳。
+- **候选核对清单**：`npm run checklist` 生成 `docs/候选核对清单-<日期>.md`，供下单前逐条核对
+  价格/在售/区服，并列出需自锻的宝物件数（宝物按自行锻造、材料累计，不按购买价计成本）。
 - **策略漏斗排序**：L1 选品池 → L2 列表门槛 + 预筛分 → L3 评分/硬规则/画像 → L4 人工复核，
   输出「落地战力 / 性价比」排序与漏斗召回统计。
 
@@ -45,10 +47,13 @@
         scripts/merge-api.js ──► data/accounts-final.json
                  │                （按 ordersn 去重；补 source/capturedAt/statusKind；
                  │                  静态表 data/name-camp.json；跳过过期浏览器 detail）
+                 │                （合并前自动备份上一版到 data/backups/，合并后跑 snapshot-diff）
                  ├──────────────► scripts/report.js
-                 │                   └─► docs/找号报告-<客户>-<日期>.md（逐队落地 + 购买建议）
+                 │                   └─► docs/找号报告-<客户>-<日期>.md（逐队落地 + 购买建议 + 采集时效 ⏳）
                  ├──────────────► scripts/recommend.js
                  │                   └─► docs/最终购买建议-<日期>-自动.md（自动购买建议）
+                 ├──────────────► scripts/candidate-checklist.js
+                 │                   └─► docs/候选核对清单-<日期>.md（下单前逐条核对/自锻件数）
                  └──────────────► scripts/strategy-eval.js
                                      └─► reports/策略落地-20261025/策略排序.md
 
@@ -89,9 +94,13 @@ npm test
 # 5) 一键找号：直采 → 合并 → 报告 → 自动购买建议
 npm run find
 
-# 6) 单独重跑报告 / 策略排序（复用已有 data/accounts-final.json）
+# 6) 单独重跑报告 / 策略排序 / 候选核对清单（复用已有 data/accounts-final.json）
 npm run report
 npm run strategy
+npm run checklist
+
+# 7) 与上次快照对比（新上架/下架/降价/状态变化；find-all 已自动跑）
+npm run diff -- --prev data/backups/accounts-final-<旧>.json --cur data/accounts-final.json
 ```
 
 `npm run find` 参数透传示例（默认价格 1500–2500 元）：
@@ -120,6 +129,9 @@ npm run find -- -SkipReport                                # 只采集 + 合并
 
 调参流程建议：先跑 `npm run filter-strategy` 看单因子证据与召回，再改本文件，
 最后 `npm run strategy` 对比新/旧排序（详见 `reports/筛选条件策略-20261025/`）。
+
+> `detailBudget` 会真正生效：`api-collect.js` 未显式传 topN 时，按配置的详情预算截断待抓列表
+> （默认 40 个），避免月度跑批时无意识抓全池；需要全量抓可显式传第 3 个参数 topN 或调大该值。
 
 ## 5. 目录结构
 

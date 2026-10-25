@@ -97,6 +97,9 @@ function fmtDateTime(d) {
 function ymdLocal(d) {
   return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
 }
+function ymdOf(d) {
+  return d && !isNaN(d) ? `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` : '?';
+}
 function fmtIso(iso) {
   if (!iso) return '-';
   const d = new Date(iso);
@@ -169,6 +172,11 @@ function main() {
       : ['sold', 'delisted']
   );
   const maxStaleDays = typeof l0.maxStaleDays === 'number' ? l0.maxStaleDays : 14;
+  // 单条记录的采集时效标注（候选表/明细用）：超过 maxStaleDays 或缺失采集时间 → ⏳ 需人工核价
+  const fmtCapture = r => {
+    if (!r.capturedAt) return '? ⏳';
+    return `${ymdOf(r.capturedAt)}${r.ageDays != null && r.ageDays > maxStaleDays ? ' ⏳' : ''}`;
+  };
 
   // 2) 账号数据
   const dataAbs = path.resolve(ROOT, opts.data);
@@ -199,16 +207,21 @@ function main() {
   log(`[report] 评估 ${accounts.length} 个账号 × ${teams.length} 支队伍 ...`);
   const rows = [];
   let invalid = 0;
+  const ageAnchor = new Date();
   accounts.forEach((acc, i) => {
     if (!acc || typeof acc !== 'object' || !acc.overview || !acc.list) { invalid++; return; }
     const ev = S.evaluate(acc, teams, true);
     const st = statusOf(acc);
+    const capMs = acc.capturedAt ? Date.parse(acc.capturedAt) : NaN;
+    const capturedAt = Number.isFinite(capMs) ? new Date(capMs) : null;
     rows.push({
       idx: i, acc, ev, st,
       src: sourceOf(acc),
       url: String(acc.overview.url || ''),
       server: acc.list.server || ev.server,
-      price: ev.price, score: ev.score
+      price: ev.price, score: ev.score,
+      capturedAt,
+      ageDays: capturedAt ? dayDiff(ageAnchor, capturedAt) : null
     });
   });
   if (!rows.length) throw new Error('没有可评估的账号（记录缺少 overview/list 字段）');
@@ -239,8 +252,16 @@ function main() {
   // 5) 头部可复现信息 + 告警
   const now = new Date();
   const warnings = [];
+  const staleRowCount = rows.filter(r => !r.capturedAt || r.ageDays == null || r.ageDays > maxStaleDays).length;
+  const staleCandidates = candidates.filter(r => !r.capturedAt || r.ageDays == null || r.ageDays > maxStaleDays).length;
   if (staleDays > maxStaleDays) {
     warnings.push(`数据时效: 快照距今 ${staleDays} 天，超过阈值 ${maxStaleDays} 天。价格与在售状态可能已变化，建议先刷新采集（powershell -File scripts/find-all.ps1）；下单前务必点开链接核对。`);
+  }
+  if (staleRowCount) {
+    warnings.push(`数据时效: ${staleRowCount}/${rows.length} 条记录采集时间超过 ${maxStaleDays} 天或缺失（候选表/明细中标 ⏳），这些号的价格与在售状态需人工核对；⚠️ 报告头部「距今」按最新一条采集时间计，不代表候选号都新。`);
+  }
+  if (staleCandidates) {
+    warnings.push(`候选时效: 候选 Top ${candidates.length} 中有 ${staleCandidates} 个采集超过 ${maxStaleDays} 天，下单前务必逐个点开链接核价（尤其旧价格可能已变）。`);
   }
   if (invalid) warnings.push(`跳过 ${invalid} 条缺少 overview/list 的无效记录。`);
   for (const w of lib.warnings || []) warnings.push(`队伍库: ${w}`);
@@ -283,7 +304,7 @@ function main() {
   const captureDesc = captured
     ? `采集 ${fmtDateTime(captureMin)} ~ ${fmtDateTime(snapshotAt)}（${captured}/${rows.length} 条带来源时间）`
     : `文件修改 ${fmtDateTime(snapshotAt)} · 无 provenance 采集时间`;
-  md.push(`> **数据快照**: \`${path.relative(ROOT, dataAbs)}\` · ${captureDesc} · 距今 ${staleDays} 天（按最新采集时间） · 有效账号 **${rows.length}**${invalid ? `（跳过无效 ${invalid}）` : ''}`);
+  md.push(`> **数据快照**: \`${path.relative(ROOT, dataAbs)}\` · ${captureDesc} · 距今 ${staleDays} 天（按最新采集时间） · 超阈值/缺失采集时间 **${staleRowCount}/${rows.length}** 条（⏳） · 有效账号 **${rows.length}**${invalid ? `（跳过无效 ${invalid}）` : ''}`);
   md.push(`> **数据来源**: ${Object.entries(sourceCounts).map(([k, v]) => `${k} ${v}`).join(' / ')}`);
   md.push(`> **状态分布**: ${statusLine(statusCounts) || '无'}`);
   md.push(`> **队伍库**: ${teamSourceLabel} · **${teams.length} 队**（${teamTierLine(teams)}）${teamHash ? ` · 榜单 sha1 \`${teamHash}\`` : ''}`);
@@ -316,7 +337,7 @@ function main() {
     md.push('');
     md.push(`### ${medal} ${statusWarn}${priceText(ev.price)} · ${esc(r.server)} · 战力 ${ev.score} · 性价比 ${ev.valuePer1000}/千元`);
     md.push('');
-    md.push(`- 状态: **${statusLabel}**${r.st.raw && r.st.raw !== statusLabel ? `（${esc(r.st.raw)}）` : ''} · 画像: ${ev.profile} · 链接: ${r.url || '（无）'}`);
+    md.push(`- 状态: **${statusLabel}**${r.st.raw && r.st.raw !== statusLabel ? `（${esc(r.st.raw)}）` : ''} · 采集: **${fmtCapture(r)}** · 画像: ${ev.profile} · 链接: ${r.url || '（无）'}`);
     md.push(`- 落地: 完整 **${ev.full.length}** 队 · 只缺宝 **${ev.onlyGear.length}** 队 · 缺战法 ${ev.missTac.length} 队（缺1可救 ${ev.missTacticStats.rescued}/${ev.missTacticStats.oneMissing} · 缺2 ${ev.missTacticStats.twoMissing} · 缺3+ ${ev.missTacticStats.threePlus}）| 完整T1+ ${ev.fullT1plus} · T0/T0+只缺宝 ${ev.t0OnlyGear} · 真成长 ${ev.growth.length} | 主门槛 ${ev.gatePass ? '✅' : '—'} · 补宝门槛 ${ev.baoBaoPass ? '✅' : '—'}`);
     md.push(`- 武将/战法/宝物: ${ev.stars != null ? `${ev.stars} 张五星` : '五星?'} · S战法 ${ev.sTac != null ? ev.sTac : '?'} · 锻造 ${ev.forged != null ? ev.forged : '?'} · 武将 ${ev.heroCount != null ? ev.heroCount : '?'} 名`);
     if (best.length) {
@@ -332,12 +353,12 @@ function main() {
   md.push('');
   md.push(`> 过门槛账号 ${passed.length} 个（主门槛 ${gatePassCount} / 补宝门槛 ${baoBaoCount}），其中溢价拦截 ${passedPremiumBlocked} 个、状态为 ${[...exclude].join('/')} 剔除 ${excludedByStatus} 个；下表为剩余可推荐账号。`);
   md.push('');
-  md.push('| # | 账号 | 价格 | 状态 | 战力 | 性价比 | 完整 | 只缺宝 | 缺战法(1/2/3+) | 完整T1+ | 画像 |');
-  md.push('|---|------|------|------|------|--------|------|--------|--------|---------|------|');
+  md.push('| # | 账号 | 价格 | 采集 | 状态 | 战力 | 性价比 | 完整 | 只缺宝 | 缺战法(1/2/3+) | 完整T1+ | 画像 |');
+  md.push('|---|------|------|------|------|------|--------|------|--------|--------|---------|------|');
   candidates.forEach((r, i) => {
-    md.push(`| ${i + 1} | ${linkOf(r.server, r.url)} | ${priceText(r.price)} | ${STATUS_LABEL[r.st.kind] || r.st.kind} | ${r.ev.score} | ${r.ev.valuePer1000} | ${r.ev.full.length} | ${r.ev.onlyGear.length} | ${r.ev.missTacticStats.oneMissing}/${r.ev.missTacticStats.twoMissing}/${r.ev.missTacticStats.threePlus} | ${r.ev.fullT1plus} | ${r.ev.profile} |`);
+    md.push(`| ${i + 1} | ${linkOf(r.server, r.url)} | ${priceText(r.price)} | ${fmtCapture(r)} | ${STATUS_LABEL[r.st.kind] || r.st.kind} | ${r.ev.score} | ${r.ev.valuePer1000} | ${r.ev.full.length} | ${r.ev.onlyGear.length} | ${r.ev.missTacticStats.oneMissing}/${r.ev.missTacticStats.twoMissing}/${r.ev.missTacticStats.threePlus} | ${r.ev.fullT1plus} | ${r.ev.profile} |`);
   });
-  if (!candidates.length) md.push('| - | 无 | - | - | - | - | - | - | - | - | - |');
+  if (!candidates.length) md.push('| - | 无 | - | - | - | - | - | - | - | - | - | - |');
 
   // 三、重点账号落地 5 队明细
   md.push('');
@@ -351,7 +372,7 @@ function main() {
     const plan = plans.get(r) || {};
     const best = (plan.res && plan.res.best) || [];
     md.push('');
-    md.push(`### 3.${i + 1} ${priceText(r.price)} · ${linkOf(r.server, r.url)} · 战力 ${ev.score} · ${ev.profile} · ${STATUS_LABEL[r.st.kind] || r.st.kind}`);
+    md.push(`### 3.${i + 1} ${priceText(r.price)} · ${linkOf(r.server, r.url)} · 战力 ${ev.score} · ${ev.profile} · ${STATUS_LABEL[r.st.kind] || r.st.kind} · 采集 ${fmtCapture(r)}`);
     md.push('');
     md.push(`> 完整 ${ev.full.length} / 只缺宝 ${ev.onlyGear.length} / 缺战法 ${ev.missTac.length}（缺1可救 ${ev.missTacticStats.rescued}/${ev.missTacticStats.oneMissing} · 缺2 ${ev.missTacticStats.twoMissing} · 缺3+ ${ev.missTacticStats.threePlus}）· 真成长 ${ev.growth.length} · 组合最优评分 ${plan.res ? plan.res.bestScore : '-'}`);
     md.push(`> T1+ 战法缺口: 缺1 ${ev.missT1plus.one}（可救 ${ev.missT1plus.rescued}）/ 缺2 ${ev.missT1plus.two} / 缺3+ ${ev.missT1plus.threePlus}；每本战法最多救 1 队，未救回及缺≥2 的队不进「现有可打 5 队」`);
@@ -381,7 +402,7 @@ function main() {
     const gate = r.ev.gatePass ? '✅' : (r.ev.baoBaoPass ? '🟡补宝' : '⛔');
     const prem = r.ev.premiumOk ? '✅' : '⚠️';
     const rec = exclude.has(r.st.kind) ? '🚫' : ((r.ev.gatePass || r.ev.baoBaoPass) && r.ev.premiumOk ? '✅' : '—');
-    md.push(`| ${i + 1} | ${esc(r.server)} | ${priceText(r.price)} | ${STATUS_LABEL[r.st.kind] || r.st.kind} | ${r.score} | ${r.ev.full.length} | ${r.ev.onlyGear.length} | ${r.ev.missTac.length} | ${r.ev.fullT1plus} | ${gate} | ${prem} | ${rec} |`);
+    md.push(`| ${i + 1} | ${esc(r.server)}${(!r.capturedAt || r.ageDays > maxStaleDays) ? ' ⏳' : ''} | ${priceText(r.price)} | ${STATUS_LABEL[r.st.kind] || r.st.kind} | ${r.score} | ${r.ev.full.length} | ${r.ev.onlyGear.length} | ${r.ev.missTac.length} | ${r.ev.fullT1plus} | ${gate} | ${prem} | ${rec} |`);
   });
 
   // 五、购买建议（自动）
@@ -406,6 +427,8 @@ function main() {
   const tips = [];
   tips.push(`售出/下架账号 ${excludedByStatus} 个、溢价拦截 ${passedPremiumBlocked} 个已排除在推荐之外；状态未知 ${statusCounts.unknown || 0} 个需人工点开链接确认。`);
   if (staleDays > maxStaleDays) tips.push(`数据快照距今 ${staleDays} 天（阈值 ${maxStaleDays}），价格/在售状态可能已变化，下单前请以商品链接为准。`);
+  if (staleCandidates) tips.push(`候选 Top ${candidates.length} 中有 ${staleCandidates} 个采集超过 ${maxStaleDays} 天（表中 ⏳），旧价格可能已变或已下架；下单前先刷新采集并逐个核对链接。`);
+  tips.push('补宝口径: 宝物按「自锻 / 材料累计」评估可解锁队伍，不按购买价计成本；表中「只缺宝」只表示缺件，不等于需要花钱买宝。');
   tips.push('战力 = 榜单档位权重 × 落地状态系数（完整 1.0 / 只缺宝 0.8 / 缺 1 本战法 0.7 且每本战法最多救 1 队 / 缺 2 本战法降一档 ×0.6 / 缺 3+ 本记 0；只缺宝过多另有降权），未计入红度、赛季、宝物词条等细项，最终以游戏内实测为准。');
   tips.push('榜单未识别项（弓诸葛/新垣曲/刘璋、8 个战法、金鸾/隕口/戟 等宝物）按「缺失」保守计算，相关队伍落地可能被低估。');
   for (const t of tips) md.push(`> - ${t}`);
@@ -440,6 +463,8 @@ function main() {
     dataSnapshot: snapshotAt.toISOString(),
     staleDays,
     staleWarn: staleDays > maxStaleDays,
+    staleRows: staleRowCount,
+    staleCandidates,
     gatePass: gatePassCount,
     baoBaoPass: baoBaoCount,
     premiumBlocked: passedPremiumBlocked,

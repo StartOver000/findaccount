@@ -1,8 +1,9 @@
 // ============================================================
 // verify-core.js — 核心离线回归测试（npm test 的第二部分）
 //
-// 覆盖：配置单源、运行元数据、队伍库结构、采集脚本接线、ps1 BOM/语法。
-// 完全离线，不访问网络、不读写 data/accounts-*.json。
+// 覆盖：配置单源、运行元数据、队伍库结构、采集脚本接线、报告时效标注、
+//       候选核对清单、详情预算、find-all 快照差异、ps1 BOM/语法。
+// 完全离线，不访问网络；只读 data/accounts-final.json 做结构与时效检查。
 // 用法：node scripts/verify-core.js
 // ============================================================
 'use strict';
@@ -193,6 +194,43 @@ test('接线：report.js 存在且可被 find-all 调用', () => {
   assert(/--customer/.test(src), 'report.js 缺少 --customer 参数处理');
 });
 
+test('接线：report.js 标注单条采集时效（⏳ / staleRows）', () => {
+  const src = read('scripts/report.js');
+  assert(src.includes('staleRows'), 'report.js 缺少逐条时效统计 staleRows');
+  assert(src.includes('fmtCapture'), 'report.js 缺少单条采集时间格式化 fmtCapture');
+  assert(src.includes('⏳'), 'report.js 缺少过期标记 ⏳');
+  assert(src.includes('自锻'), 'report.js 缺少「补宝按自锻」口径说明');
+});
+
+test('接线：api-collect 详情预算（topN 优先，否则读 config.detailBudget）', () => {
+  const src = read('scripts/api-collect.js');
+  assert(src.includes('config.detailBudget'), 'api-collect 未读取 config.detailBudget');
+  assert(src.includes('todo.length = budget'), 'api-collect 未按预算截断待采列表');
+});
+
+test('接线：find-all.ps1 合并前备份 + 合并后 snapshot-diff（失败仅告警）', () => {
+  const src = read('scripts/find-all.ps1');
+  assert(src.includes('snapshot-diff.js'), 'find-all.ps1 未接入 snapshot-diff');
+  assert(src.includes('backups'), 'find-all.ps1 未备份上一版 accounts-final');
+  assert(src.includes('Write-Warning'), 'find-all.ps1 差异失败时未降级为告警');
+});
+
+test('候选核对清单：脚本可运行且输出结构合法（--json）', () => {
+  const script = path.join(ROOT, 'scripts', 'candidate-checklist.js');
+  assert(fs.existsSync(script), 'scripts/candidate-checklist.js 不存在');
+  const { spawnSync } = require('child_process');
+  const res = spawnSync(process.execPath, [script, '--data', 'data/accounts-final.json', '--json'], {
+    cwd: ROOT, encoding: 'utf8', timeout: 120000
+  });
+  assert(res.status === 0, `候选核对清单执行失败: ${(res.stderr || '').slice(0, 300)}`);
+  const out = JSON.parse(res.stdout.trim().split('\n').pop());
+  assert(out.ok === true, '清单 JSON ok 字段异常');
+  assert(Number.isInteger(out.candidates) && out.candidates >= 1, `候选数异常: ${out.candidates}`);
+  assert(Array.isArray(out.top) && out.top.length >= 1, '清单 top 为空');
+  assert(out.top[0].server && Array.isArray(out.top[0].gearNeeded), 'top 条目缺 server/gearNeeded');
+  assert(typeof out.staleRows === 'number', '清单缺少 staleRows 统计');
+});
+
 // ---------- 5. 数据文件存在性（只读检查，不改内容） ----------
 test('数据：accounts-final.json 可解析且数量合理', () => {
   const file = path.join(ROOT, 'data', 'accounts-final.json');
@@ -200,6 +238,9 @@ test('数据：accounts-final.json 可解析且数量合理', () => {
   assert(Array.isArray(arr) && arr.length >= 100, `账号数量异常: ${arr && arr.length}`);
   const withStatus = arr.filter((a) => a.statusKind || (a.overview && a.overview.status)).length;
   assert(withStatus > 0, '没有可识别的状态字段');
+  // 采集时效：允许旧记录没有 capturedAt（报告会标 ⏳），但必须至少有一部分新记录带真实采集时间
+  const withCapture = arr.filter((a) => a.capturedAt && Number.isFinite(Date.parse(a.capturedAt))).length;
+  assert(withCapture >= 1, '没有任何记录带 capturedAt（无法判断采集时效）');
 });
 
 // ---------- 汇总 ----------

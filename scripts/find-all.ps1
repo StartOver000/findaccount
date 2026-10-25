@@ -5,6 +5,8 @@
 #   2. merge-api.js      合并(quality=5过滤+静态表+hero_id特判; 按 ordersn 去重; 补数据溯源)
 #   3. report.js         分析排名+逐队落地+5队规划 → 找号报告(不存在时回退旧 report.ps1 并告警)
 #   4. recommend.js      自动生成最终购买建议
+#   另外: 合并前自动备份上一版 data/accounts-final.json，合并后跑 snapshot-diff 输出本次变化
+#         （新上架/降价/下架/状态变化 → data/tmp/snapshot-diff/），失败只告警不中断。
 # 用法:
 #   powershell -File scripts/find-all.ps1                     # 全流程(价格档默认读配置)
 #   powershell -File scripts/find-all.ps1 -SkipCollect        # 跳过采集(用已有API数据)
@@ -55,6 +57,7 @@ if ($BrowserFile) {
 
 $apiOut = Join-Path $root 'data\accounts-api.json'
 $finalOut = Join-Path $root 'data\accounts-final.json'
+$backupDir = Join-Path $root 'data\backups'
 
 Write-Host '===== 1/4 API直采 ====='
 if ($SkipCollect) {
@@ -70,10 +73,29 @@ if ($SkipCollect) {
 }
 
 Write-Host '===== 2/4 数据合并 ====='
+# 合并前备份上一版最终数据：本次跑完后用 snapshot-diff 输出「新上架/降价/下架/状态变化」，
+# 便于月度复查时快速发现价格变化（data/backups 已在 .gitignore）
+$prevBackup = ''
+if (Test-Path -LiteralPath $finalOut) {
+    New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+    $prevBackup = Join-Path $backupDir ("accounts-final-{0}.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+    Copy-Item -LiteralPath $finalOut -Destination $prevBackup
+    Write-Host "  上一版快照已备份: $prevBackup"
+}
 $mergeArgs = @("$PSScriptRoot\merge-api.js", '--api', $apiOut, '--out', $finalOut)
 if ($browserPath) { $mergeArgs += @('--browser', $browserPath) }
 node @mergeArgs
 if ($LASTEXITCODE -ne 0) { Write-Error '合并失败'; exit 1 }
+
+if ($prevBackup) {
+    $diffDir = Join-Path $root 'data\tmp\snapshot-diff'
+    New-Item -ItemType Directory -Force -Path $diffDir | Out-Null
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    node "$PSScriptRoot\snapshot-diff.js" --prev $prevBackup --cur $finalOut --json (Join-Path $diffDir "diff-$stamp.json") --md (Join-Path $diffDir "diff-$stamp.md")
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "快照差异生成失败（不影响主流程）；可手动运行: node scripts/snapshot-diff.js --prev `"$prevBackup`" --cur `"$finalOut`""
+    }
+}
 
 if ($SkipReport) { Write-Host '跳过报告生成'; exit 0 }
 

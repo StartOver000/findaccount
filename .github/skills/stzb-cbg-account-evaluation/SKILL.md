@@ -62,7 +62,7 @@ powershell -File scripts/find-all.ps1 -SkipCollect
 powershell -File scripts/collect.ps1 -PriceMin 150000 -PriceMax 200000 -Tag 1500-2000
 ```
 
-- `find-all.ps1` 依次做：`update-shishi --quiet` → `api-collect.js`（L2 门槛 + 预筛分排序）→ `merge-api.js` → `report.js` → 自动购买建议；
+- `find-all.ps1` 依次做：`update-shishi --quiet` → `api-collect.js`（L2 门槛 + 预筛分排序）→ 备份上一版 `data/accounts-final.json` 到 `data/backups/` → `merge-api.js` → `snapshot-diff.js`（只告警）→ `report.js` → 自动购买建议；
 - 首次运行会开浏览器，需在窗口内登录藏宝阁并完成手机验证；cookie 存 `.cbg-profile` 复用；
 - 未登录时列表接口返回 `SESSION_TIMEOUT`，脚本会停下等人处理，不要绕过；
 - 全量采集约 10-15 分钟（慢速 3-4 秒/号防限流），不要并发其他请求。
@@ -70,19 +70,21 @@ powershell -File scripts/collect.ps1 -PriceMin 150000 -PriceMax 200000 -Tag 1500
 ### 2. 合并（provenance 标注）
 
 - `node scripts/merge-api.js`：按 `ordersn`（藏宝阁商品号）去重生成 `data/accounts-final.json`；
-- 每条记录补 `source`（api / browser）、`capturedAt`（采集时间 ISO）、`statusKind`（`onSale` / `publicity` / `sold` / `delisted` / `other` / `unknown`，由 `l0_data.statusLabels` 归一化）；
+- 每条记录补 `source`（api / browser）、`capturedAt`（采集时间 ISO）、`statusKind`（`onSale` / `publicity` / `sold` / `delisted` / `other` / `unknown`，由 `l0_data.statusLabels` 归一化）；**旧记录没有自己的采集时间时留空，不再用合并时间/文件 mtime 冒充**（报告/清单会标 ⏳，避免把 8 月旧价格显示成“今天”采集）；
 - `l0_data.excludeFromRecommend`（sold / delisted）不进最终推荐；超过 `l0_data.maxStaleDays` 的浏览器详情文件自动跳过并 warn；
+- 合并前自动把上一版 `data/accounts-final.json` 备份到 `data/backups/`，合并后自动跑 `snapshot-diff.js`，输出本次「新上架/下架/降价/涨价/状态变化」到 `data/tmp/snapshot-diff/`，失败只告警不中断；
 - 每次运行写 `data/run-meta.json`：`runId` / 阶段 / 参数 / 配置指纹 / 计数 / 状态，保留最近 20 次。
 
 ### 3. 报告与策略排序
 
-- **单进程报告**：`node scripts/report.js` 一次产出「逐队落地 + 补件成本 + 最终购买建议」，`find-all.ps1` 第 3 步自动调用，输出 `docs/找号报告-<客户>-<日期>.md`；队伍库为 `data/teams.json`（由 `docs/队伍强度排行榜.md` 解析，报告/评分统一读它，不再各自解析榜单）；
+- **单进程报告**：`node scripts/report.js` 一次产出「逐队落地 + 补件成本 + 最终购买建议」，`find-all.ps1` 第 3 步自动调用，输出 `docs/找号报告-<客户>-<日期>.md`；队伍库为 `data/teams.json`（由 `docs/队伍强度排行榜.md` 解析，报告/评分统一读它，不再各自解析榜单）；报告逐条标注采集日期（候选表/明细/附表），超过 `maxStaleDays` 或缺失采集时间的标 ⏳，并在告警区给出「过期候选 N 个」；
+- **候选核对清单**：`npm run checklist`（`scripts/candidate-checklist.js`）输出 `docs/候选核对清单-<日期>.md`，逐号列价格/采集日期/状态/商品链接/ordersn/完整T1+/只缺宝/需补战法，以及**需自锻的宝物件数**（按队伍需求逐件累计）；宝物按「自行锻造、材料累计」处理，不按购买价计成本；下单前照单核对价格与在售状态；
 - 策略参数**只在** `data/strategy-config.json`（脚本经 `lib-config` 读取，禁止写死）。当前口径：
   - L2 列表门槛：五星≥85、S 战法≥20、锻造≥15、稀世≥10（二次优化，原 12）、详情预算 40（`maxDetailCandidates` 上限 80）；锻造 15 经 2026-10-25 A/B 复测：关掉只多弱号、不丢头部候选，保留它省详情请求；
   - L3 评分：`tierWeight` T0+=10、T0=8、T1=5、T2-=2；只缺宝 ×0.8；缺战法按 `missingTacticCurve` 分级——缺 1 本 ×0.7（每本战法最多救 1 队，超出/未救回按缺 2 处理）、缺 2 本降一档 ×0.6、缺 3+ 本记 0；版本覆盖「司马懿→晋」、跳过弓诸葛；
   - 硬规则：只缺宝缺≥3 ×0.3、溢价硬门槛（`premiumOver`）；旧「高 T 缺战法≥2 整队剔除」已由 `missingTacticCurve` 取代（`highTierMissingTactics.enabled=false`，仅 legacy 曲线关闭时生效）；gate（2026-10-25 重标定）：`minFullT1plus` 4 / alt「1 完整 + 3 只缺宝 T1+」/ alt2_baobao「4 只缺宝 T1+ 且真成长≥2」；画像：即战型 / 均衡型 / 补宝型。旧 2/1+2/3&g2 是按「二选一当全必选」的旧口径标的，统一引擎修复后过松（186 样本候选 69），重标定后候选 27 且保留旧候选 13/15；
   - **缺战法分级（2026-10-25 新增，用户口径）**：少 1 本只是扣分（×0.7，接近可用）；少 2 本向下走一档再 ×0.6；少 3 本记 0。约束：同名战法只有一张替补卡，**每本战法最多救 1 支队**，多出来的按缺 2 处理；缺 ≥2 本的队不进「现有可打 5 队」，只降低战力评分；缺战法依旧不算短期可补方向；
-- **列表阶段按预筛分排序，不按五星排序**：`scripts/prefilter.js` 的 P 值（S战法权重最大），api-collect 默认按 P 降序抓 40 个详情（原 30）；列表无锻造数时自动改用 `weightsNoForged`；依据见 [筛选条件分析.md](../../../reports/筛选条件策略-20261025/筛选条件分析.md)（r：S战法 0.50 > 价格 0.36 > 锻造 0.21 > 五星 0.18）与 [优化报告.md](../../../reports/筛选策略优化-20261025/优化报告.md)（6 个候选全局 P 排名 1/6/7/28/34/69；top40 命中 5/6）；
+- **列表阶段按预筛分排序，不按五星排序**：`scripts/prefilter.js` 的 P 值（S战法权重最大），api-collect 按 P 降序抓详情，并用配置 `l2_list_filter.detailBudget`（40）截断详情预算（未显式传 topN 时生效；要全量抓需显式传 topN 或调大该值）；列表无锻造数时自动改用 `weightsNoForged`；依据见 [筛选条件分析.md](../../../reports/筛选条件策略-20261025/筛选条件分析.md)（r：S战法 0.50 > 价格 0.36 > 锻造 0.21 > 五星 0.18）与 [优化报告.md](../../../reports/筛选策略优化-20261025/优化报告.md)（6 个候选全局 P 排名 1/6/7/28/34/69；top40 命中 5/6）；
 - 排序脚本 `node scripts/strategy-eval.js`（`npm run strategy`），产出 `reports/策略落地-20261025/`（含策略排序.md 与 strategy-eval.json）；
 - 筛选条件策略分析 `node scripts/filter-strategy.js`，产出 `reports/筛选条件策略-20261025/`（门槛/排序对比与推荐参数）；
 - 2026-10-25 实采验证（35 个号）：预筛分 Top10 抓到全部 2 个候选，五星排序 Top20 全漏；当前试师新服候选集中在 2466–2500，见 [实测报告.md](../../../reports/筛选策略实测-20261025/实测报告.md)；
@@ -91,13 +93,14 @@ powershell -File scripts/collect.ps1 -PriceMin 150000 -PriceMax 200000 -Tag 1500
 
 ### 4. 验收清单
 
-- `npm test` 全绿 = `verify-shishi`（8/8）+ `verify-core`（配置单源 / runmeta / data 契约 / 接线 / BOM）；
+- `npm test` 全绿 = `verify-shishi`（8/8）+ `verify-core`（配置单源 / runmeta / data 契约 / 接线 / BOM / 报告时效标注 / 详情预算 / 候选核对清单 / 合并备份与快照 diff）；
 - CI（`.github/workflows/test.yml`）绿：`npm ci --ignore-scripts` → `npm test` → 全量 `node --check` → 递归 pwsh Parser → 递归 ps1 BOM 检查（**不跑联网采集**）；
 - `data/shishi-open.json` 的 `count` > 0（2026-10-25 为 65）；
-- `find-all.ps1 -SkipCollect -SkipReport` 退出码 0（离线冒烟）；
+- `find-all.ps1 -SkipCollect -SkipReport` 退出码 0（离线冒烟）；冒烟后 `data/backups/` 应新增一份上一版快照、`data/tmp/snapshot-diff/` 应新增 diff 文件（失败只告警不中断）；
 - `node scripts/filter-strategy.js` 退出码 0，且 `reports/筛选条件策略-20261025/筛选条件分析.md` 里「推荐筛选条件」与 `data/strategy-config.json` 的 `l2_list_filter` 一致；
 - 报告里的区服均为当前开放试师（X 区服能在 `shishi-open.json` 的 `xid` 中找到）；
-- 报告/推荐能看到 provenance（`capturedAt` / `statusKind`），超过 `l0_data.maxStaleDays` 的数据必须标注「旧快照」；
+- 报告/推荐/清单能看到 provenance（`capturedAt` / `statusKind`）：超过 `l0_data.maxStaleDays` 或**没有自己采集时间**的记录必须标 ⏳，且报告告警区给出「过期候选 N 个」；旧记录宁可留空也不能用合并时间冒充；
+- `npm run checklist` 生成的 `docs/候选核对清单-<日期>.md` 与报告候选一致，含价格/采集日期/⏳/商品链接/需自锻宝物件数（宝物按自锻材料口径，不列购买价）；
 - 根 [README.md](../../../README.md) 的快速开始可照抄执行；历史脚本只允许出现在 `scripts/legacy/`（见 [legacy README](../../../scripts/legacy/README.md)）。
 
 ### 已知坑（2026-10 实测）
@@ -105,6 +108,9 @@ powershell -File scripts/collect.ps1 -PriceMin 150000 -PriceMax 200000 -Tag 1500
 - 藏宝阁旧硬编码 65 服（44748-44874）全部关服；旧手动白名单还误加了 X5781-X5785/X5829/X5830，已由官方数据源替换；
 - 备用源 `www.163hot.net` 已停更（2026-05），静态源失败会因 60 天校验 fail-closed，不会写残缺白名单；
 - `.ps1` 必须 UTF-8 带 BOM，否则 Windows PowerShell 5.1 解析中文注释会报 “string is missing the terminator” 且输出乱码；`.gitattributes` 只管换行不管 BOM，`npm test` 与 CI 会检查前 3 字节 `EF BB BF`；
+- 2026-08 采集的旧 API 记录没有自己的 `capturedAt`，`merge-api.js` 现在**留空**，报告/清单会标 ⏳ 且告警「缺失采集时间 N 条」——这是如实标注（旧价格≠今天价格），不是 bug；不要为了“好看”用合并时间或文件 mtime 补上，否则会产生“距今 0 天”的误导；
+- `detailBudget` 已生效：`api-collect.js` 未显式传 topN 时按配置截断详情抓取（默认 40），月度跑批不会无意识抓全池；要全量抓请显式传 topN 或临时调大配置；
+- 合并前的备份与合并后的 `snapshot-diff` 只在 `find-all.ps1` 自动跑（`data/backups/` 自动累积、已 gitignore）；单独跑 `merge-api.js` 不会自动备份，需要对比时手动传 `--prev`；
 - 大神网页版工具卡点击无效、藏宝阁区服列表无试师标记，这两条路已排除，不要重复尝试；
 - 历史脚本（`plan5-v2.ps1`、`lib-cbg.ps1`、`count-teams.ps1`、`t0-*.ps1`、`find-accounts-20260807.ps1`、`fetch_cbg_api.ps1`）已归档到 `scripts/legacy/`，只作复盘参考，**不要在新流程里调用**。
 
@@ -116,8 +122,7 @@ powershell -File scripts/collect.ps1 -PriceMin 150000 -PriceMax 200000 -Tag 1500
 - 战法和宝物只用于第二轮复核，不要在第一轮就过早排除候选
 - 武将和战法补件成本高，默认不把它们当作短期补强手段
 - 缺战法按缺口本数分级（缺 1 ×0.7 / 缺 2 降档 ×0.6 / 缺 3+ 记 0），不统一当「不可用」；但同名战法只有一张替补卡，每本最多救 1 队
-- 宝物是短期内最现实的补件对象
-- 最终结论要优先回答两个问题：买到手能打什么，短期补宝物后还能增强什么
+- 宝物是可自锻、靠材料累计的补件方向（按自锻周期看，不是立刻买齐）；报告/清单按「需自锻件数」表达，不列宝物价；最终结论要优先回答两个问题：买到手能打什么，自锻补齐后还能增强什么
 
 ### 同名异版本武将的硬规则
 

@@ -19,7 +19,7 @@
 // 用法:
 //   node scripts/api-collect.js [OUT.json] [priceMin] [priceMax] [browser-detail.json] [topN]
 //     browser-detail.json: 可选, 传了则只采「浏览器没有的号」(补漏模式)
-//     topN: 可选数字, 只采预筛分最高的前 N 个号(精选模式, 防限流)
+//     topN: 可选数字, 只采预筛分最高的前 N 个号(精选模式, 防限流); 不传则用配置 l2_list_filter.detailBudget
 //   env STZB_LOGIN_WAIT_MS: 登录/验证人工等待超时(毫秒, 默认 120000, 0=不限时)
 //   前置: 首次需在打开的浏览器窗口登录并完成手机验证
 // 阈值来源: data/strategy-config.json（经 lib-config.js），脚本内不写死门槛值
@@ -239,9 +239,12 @@ async function main() {
   }
   // 预筛分排序: 详情预算有限时先采「最可能成队」的号，而不是五星最多的号
   sortByPrefilter(todo);
-  if (TOPN > 0 && todo.length > TOPN) {
-    console.log(`topN 精选: 按预筛分只采前 ${TOPN} 个 (共 ${todo.length} 个可采, 预筛分最高 ${scoreAccount(todo[0]).score})`);
-    todo.length = TOPN;
+  // 详情预算: 显式 topN 优先；未指定时按配置 l2_list_filter.detailBudget 截断，避免无意识抓全池
+  const budget = TOPN > 0 ? TOPN : (Number(L2.detailBudget) || 0);
+  const budgetFrom = TOPN > 0 ? 'topN' : 'config.detailBudget';
+  if (budget > 0 && todo.length > budget) {
+    console.log(`详情预算(${budgetFrom}=${budget}): 按预筛分只采前 ${budget} 个 (共 ${todo.length} 个可采, 预筛分最高 ${scoreAccount(todo[0]).score})`);
+    todo.length = budget;
   }
   console.log(`filter(L2 ${CONTROL ? 'CONTROL' : JSON.stringify({ star5: FIVESTAR, sTac: L2.sTacticMin, duanzao: DUANZAO })}): need-fetch ${todo.length} | browser-skip ${brSkip} | desc-skip ${skip} (no-desc ${skipByReason['no-desc']}, star5 ${skipByReason.star5}, sTac ${skipByReason.sTac}, gear ${skipByReason.gear}) | resumed ${resumed}`);
 

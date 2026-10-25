@@ -220,7 +220,6 @@ function main() {
 
     // ---- 2. API 直采 → final 记录 ----
     const apiRecords = readRecords(apiFile);
-    const apiCapturedAt = captureTimeOf(apiRecords, apiFile);
 
     function campOf(h) {
       const sp = h.hero_id != null ? HERO_SPECIAL[h.hero_id] : undefined;
@@ -257,11 +256,13 @@ function main() {
         tactics: a.tactics || [],
         equips,
         source: 'api',
-        capturedAt: (a.capturedAt && Number.isFinite(Date.parse(a.capturedAt))) ? a.capturedAt : apiCapturedAt,
+        // 旧记录没有自己的采集时间时留空（不要用合并时间/文件 mtime 冒充），
+        // 否则报告会把 8 月的旧价格显示成「今天采集」；report/candidate-checklist 会对空值标 ⏳
+        capturedAt: (a.capturedAt && Number.isFinite(Date.parse(a.capturedAt))) ? a.capturedAt : null,
         statusKind: cfg.classifyStatus(status),
       });
     }
-    console.log(`[merge] api：${apiRecords.length} 条 → 新增 ${added.length}（空详情 ${skippedEmpty} / 低于阈值 ${skippedLow}）`);
+    console.log(`[merge] api：${apiRecords.length} 条 → 新增 ${added.length}（空详情 ${skippedEmpty} / 低于阈值 ${skippedLow} / 采集时间未知 ${added.filter(x => !x.capturedAt).length} 条，报告标 ⏳）`);
 
     // ---- 3. 浏览器记录补 provenance/ordersn ----
     const browserOut = [];

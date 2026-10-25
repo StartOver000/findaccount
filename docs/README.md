@@ -30,17 +30,18 @@
 
 - 配置单源：`data/strategy-config.json`（l0 数据时效 / l1 选品池 / l2 列表门槛与预筛分 /
   l3 评分与硬规则 / l4 人工复核）；脚本经 `scripts/lib-config.js`、`scripts/lib-config.ps1` 读取，禁止写死阈值。
-- 采集合并：`npm run shishi` → `npm run find`（内部 `api-collect.js` → `merge-api.js`）。
+- 采集合并：`npm run shishi` → `npm run find`（内部 `api-collect.js` → 备份 → `merge-api.js` → `snapshot-diff.js`）。
 - 评估报告：`npm run report`（`scripts/report.js` 单进程）、`npm run find` 第 4 步 `scripts/recommend.js` 生成 `docs/最终购买建议-<日期>-自动.md`；`npm run strategy`（策略漏斗排序）。
+- 下单前核对：`npm run checklist` 生成 `docs/候选核对清单-<日期>.md`（价格/采集时效 ⏳/在售状态/需自锻宝物件数）；`npm run diff` 对比上次快照（新上架/下架/调价/状态变化）。
 - 离线回归：`npm test`（verify-shishi + verify-core），不联网、不采集。
 - 历史脚本：`scripts/legacy/`；历史报告：`reports/legacy/`。
 
 ## 4. 约定
 
 - 新增**一次性**报告请放 `reports/<主题>-<日期>/`，不要放进 `docs/`。
-- 唯一例外：`npm run report` / `npm run find` 的当前交付产物固定写到
-  `docs/找号报告-<客户>-<日期>.md`、`docs/最终购买建议-<日期>-自动.md`，属对客交付物；
-  旧报告已归档到 `reports/legacy/`。
+- 唯一例外：`npm run report` / `npm run find` / `npm run checklist` 的当前交付产物固定写到
+  `docs/找号报告-<客户>-<日期>.md`、`docs/最终购买建议-<日期>-自动.md`、`docs/候选核对清单-<日期>.md`，
+  属对客交付物；旧报告已归档到 `reports/legacy/`。
 - 修改规范文档时，同步检查 `data/strategy-config.json` 与
   `.github/skills/stzb-cbg-account-evaluation/SKILL.md`，避免三处口径不一致。
 - 中文文档统一 UTF-8（无 BOM 亦可，git 归一化为 LF）。
